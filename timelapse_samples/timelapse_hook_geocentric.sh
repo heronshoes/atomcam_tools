@@ -51,10 +51,10 @@ BEGIN {
     if((ARGC >=2) && (ARGV[2] == "start")) {
       "/scripts/cmd move 355 180 3 1" | getline res;
       close("/scripts/cmd move 355 180 3 1");
-      sleep 3;
+      system("sleep 3");
       cmd | getline res;
       close(cmd);
-      sleep 3;
+      system("sleep 3");
       print "start: " >> "/tmp/log/timelapse_hook.log";
       print cmd >> "/tmp/log/timelapse_hook.log";
       print res >> "/tmp/log/timelapse_hook.log";
@@ -64,7 +64,7 @@ BEGIN {
       cmd0 = sprintf("/scripts/cmd move %3.3f %d 3 0", pan0, 180 - tiltAngle);
       cmd0 | getline res;
       close(cmd0);
-      sleep 3
+      system("sleep 3");
     }
     for(i = 0; i < 3; i++) {
       cmd | getline res;
@@ -78,7 +78,7 @@ BEGIN {
     if((ARGC >=2) && (ARGV[2] == "start")) {
       cmd | getline res;
       close(cmd);
-      sleep 3;
+      system("sleep 3");
       print "start: " >> "/tmp/log/timelapse_hook.log";
       print cmd >> "/tmp/log/timelapse_hook.log";
       print res >> "/tmp/log/timelapse_hook.log";
