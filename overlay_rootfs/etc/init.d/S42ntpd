@@ -19,12 +19,17 @@ case "$1" in
     killall ntpd
     [ $? == 0 ] && logger -s "OK" || logger -s "FAIL"
   ;;
+  watchdog)
+    pidof ntpd > /dev/null && exit 0
+    echo `date +"%Y/%m/%d %H:%M:%S"` ": ntpd restart"
+    /usr/sbin/ntpd -p ntp.nict.jp
+  ;;
   restart|reload)
     "$0" stop
     "$0" start
   ;;
   *)
-    echo "Usage: $0 {start|stop|restart}"
+    echo "Usage: $0 {start|stop|restart|watchdog}"
     exit 1
 esac
 
