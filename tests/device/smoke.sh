@@ -156,6 +156,43 @@ else
   fail "memory: swap enabled"
 fi
 
+# --- periodic recording ---
+# A file is written for every minute: /media/mmc/record/YYYYMMDD/HH/MM.mp4
+if [ "$(echo "$ini" | sed -ne 's/^PERIODICREC_SDCARD=//p')" != "on" ]; then
+  skip "recording: periodic recording to SD card" "PERIODICREC_SDCARD is not on"
+else
+  rec=$(remote 'cut -d. -f1 /proc/uptime
+    f=$(ls -t $(find /media/mmc/record -name "*.mp4" -mmin -3) 2> /dev/null | sed -n 2p)
+    echo "$f"
+    [ -n "$f" ] && ls -l "$f" | awk "{ print \$5 }" && dd if="$f" bs=1 skip=4 count=4 2> /dev/null && echo
+    find /media/mmc/record -name "*.mp4" -mmin -5 | wc -l')
+  uptime=$(echo "$rec" | sed -n 1p)
+  file=$(echo "$rec" | sed -n 2p)
+  if [ -z "$file" ]; then
+    if [ "$uptime" -lt 180 ]; then
+      skip "recording: periodic recording to SD card" "just booted (${uptime}s)"
+    else
+      fail "recording: periodic recording to SD card" "no mp4 file in the last 3 minutes"
+    fi
+  else
+    size=$(echo "$rec" | sed -n 3p)
+    type=$(echo "$rec" | sed -n 4p)
+    count=$(echo "$rec" | sed -n 5p)
+    if [ "$size" -ge 100000 ] && [ "$type" = "ftyp" ]; then
+      pass "recording: periodic recording to SD card (${file#/media/mmc/record/} ${size}bytes)"
+    else
+      fail "recording: periodic recording to SD card" "$file size:$size type:$type"
+    fi
+    if [ "$uptime" -lt 360 ]; then
+      skip "recording: no gap in the last 5 minutes" "just booted (${uptime}s)"
+    elif [ "$count" -ge 4 ]; then
+      pass "recording: no gap in the last 5 minutes ($count files)"
+    else
+      fail "recording: no gap in the last 5 minutes" "only $count files"
+    fi
+  fi
+fi
+
 # --- disruptive ---
 if [ $DISRUPTIVE = 1 ]; then
   if remote 'grep -q watchdog /etc/init.d/S42ntpd'; then
