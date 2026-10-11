@@ -6,6 +6,7 @@
 # usage: tests/device/smoke.sh [-d] [host]
 #   host : default $ATOMCAM_HOST or atomcam-s1.local
 #   -d   : also run disruptive checks (kill ntpd and check the watchdog restarts it)
+# env  : ZOMBIE_WAIT  seconds to wait before re-checking zombie processes (default 10)
 #
 # SSH uses public key auth as root. If SSH_AUTH_SOCK is unset, ~/.ssh/agent.sock is used.
 # Exit status: 0 if all checks passed, 1 otherwise.
@@ -20,6 +21,7 @@ done
 shift $((OPTIND - 1))
 
 HOST=${1:-${ATOMCAM_HOST:-atomcam-s1.local}}
+ZOMBIE_WAIT=${ZOMBIE_WAIT:-10}
 [ -z "$SSH_AUTH_SOCK" ] && [ -S ~/.ssh/agent.sock ] && export SSH_AUTH_SOCK=~/.ssh/agent.sock
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=5 -o PubkeyAcceptedKeyTypes=ssh-rsa root@$HOST"
 
@@ -80,11 +82,23 @@ for p in iCamera_app lighttpd sshd crond ntpd avahi-daemon webhook.sh webcmd.sh;
   fi
 done
 
-zombies=$(echo "$ps" | awk '$4 ~ /^Z/')
+# Zombies appear transiently for a while after boot.
+# Only those still present after ZOMBIE_WAIT seconds are reported as failures.
+zombies=$(echo "$ps" | awk '$4 ~ /^Z/ { print $1 }')
 if [ -z "$zombies" ]; then
   pass "no zombie process"
 else
-  fail "no zombie process" "$(echo "$zombies" | tr -s ' ' | tr '\n' ';')"
+  sleep $ZOMBIE_WAIT
+  persistent=$(remote "for p in $(echo $zombies); do
+    grep -q '^State:.*Z' /proc/\$p/status 2> /dev/null || continue
+    pp=\$(awk '/^PPid/ { print \$2 }' /proc/\$p/status)
+    echo \"\$p <- \$pp: \$(tr '\\0' ' ' < /proc/\$pp/cmdline | cut -c1-80)\"
+  done")
+  if [ -z "$persistent" ]; then
+    pass "no zombie process ($(echo $zombies | wc -w) transient, gone after ${ZOMBIE_WAIT}s)"
+  else
+    fail "no zombie process" "$(echo "$persistent" | tr '\n' ';')"
+  fi
 fi
 
 # --- libcallback ---
