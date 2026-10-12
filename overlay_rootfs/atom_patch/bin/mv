@@ -17,6 +17,9 @@ WEBHOOK_URL=$(awk -F "=" '/^WEBHOOK_URL *=/ {print $2}' $HACK_INI)
 [ "$(awk -F "=" '/^WEBHOOK_INSECURE *=/ {print $2}' $HACK_INI)" = "on" ] && INSECURE_FLAG="-k "
 WEBHOOK_RECORD_EVENT=$(awk -F "=" '/^WEBHOOK_RECORD_EVENT *=/ {print $2}' $HACK_INI)
 HOSTNAME=`hostname`
+# recording start time from the file name: /media/mmc/record/YYYYMMDD/HH/MM.mp4
+TIME=`echo $2 | sed -e 's|^/media/mmc/record/||' -e 's|/||g' -e 's|.mp4$||'`
+RECTIME=`date -d $TIME +"%w %H %M"`
 
 if [ "$PERIODICREC_SCHEDULE" = "on" ]; then
   FMT=`awk '
@@ -29,7 +32,7 @@ if [ "$PERIODICREC_SCHEDULE" = "on" ]; then
         print $i;
       }
     }
-  ' /tmp/hack.ini | awk '
+  ' /tmp/hack.ini | awk -v RECTIME="$RECTIME" '
     # Rule: bit (1 << day) Mon=1 .. Sun=7
     function dayEnabled(rule, day) {
       for(; day > 0; day--) rule = int(rule / 2);
@@ -62,10 +65,9 @@ if [ "$PERIODICREC_SCHEDULE" = "on" ]; then
       if($2 != 1) ENABLE[INDEX] = 0;
     }
     END {
-      HOUR = strftime("%H");
-      MINUTE = strftime("%M");
-      NOW = HOUR * 60 + MINUTE;
-      DAY = strftime("%w");
+      split(RECTIME, T, " ");
+      NOW = T[2] * 60 + T[3];
+      DAY = T[1];
       if(DAY == 0) DAY = 7;
       PREVDAY = (DAY == 1) ? 7 : DAY - 1;
       FLAG = 0;
@@ -91,7 +93,6 @@ if [ "$FMT" != "" ]; then
   /bin/busybox mv $1 $TMPFILE
   (
     if [ "$PERIODICREC_CIFS" = "on" ] && /tmp/system/bin/mount_cifs.sh ; then
-      TIME=`echo $2 | sed -e 's|^/media/mmc/record/||' -e 's|/||g' -e 's|.mp4$||'`
       CIFSFILE=`date -d $TIME +"record/$PERIODICREC_CIFS_PATH.mp4"`
       OUTFILE="/mnt/$HOSTNAME/$CIFSFILE"
       DIR_PATH=${OUTFILE%/*}
