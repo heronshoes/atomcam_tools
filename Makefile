@@ -19,6 +19,9 @@ docker-build:
 	# build container
 	docker build -t ${DOCKER_IMAGE}${DOCKER_ARCH} . | tee docker-build_`date +"%Y%m%d_%H%M%S"`.log
 
+test-device:
+	tests/device/smoke.sh $(ARGS)
+
 login:
 	docker-compose ls | grep atomcam_tools > /dev/null || docker-compose up -d
 	docker-compose exec builder bash
