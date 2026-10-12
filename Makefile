@@ -3,6 +3,8 @@
 
 BUILDER_IMAGE=$(shell sed -ne 's/^.*image:[ \t]*//p' docker-compose.yml)
 DOCKER_ARCH=-$(subst x86_64,amd64,$(subst aarch64,arm64,$(shell uname -m)))
+# custom build (HEAD is not in origin/main): append .custom_<commit> to the version
+ATOMHACKVER_SUFFIX=$(shell git rev-parse --short HEAD > /dev/null 2>&1 && ! git merge-base --is-ancestor HEAD origin/main 2> /dev/null && echo .custom_`git rev-parse --short HEAD`)
 
 ifeq ($(shell uname -s),Darwin)
 CONTAINER_CLI ?= container
@@ -13,10 +15,10 @@ CONTAINER_NAME=atomcam_tools-builder
 build: _container-system-start
 	$(CONTAINER_CLI) image pull $(BUILDER_IMAGE)
 	$(MAKE) --no-print-directory _container-ensure
-	$(CONTAINER_CLI) exec $(CONTAINER_NAME) /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
+	$(CONTAINER_CLI) exec --env ATOMHACKVER_SUFFIX=$(ATOMHACKVER_SUFFIX) $(CONTAINER_NAME) /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
 
 build-local: container-up
-	$(CONTAINER_CLI) exec $(CONTAINER_NAME) /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
+	$(CONTAINER_CLI) exec --env ATOMHACKVER_SUFFIX=$(ATOMHACKVER_SUFFIX) $(CONTAINER_NAME) /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
 
 container-up: _container-system-start
 	$(MAKE) --no-print-directory _container-ensure
@@ -62,11 +64,11 @@ DOCKER_COMPOSE=$(shell docker compose version >/dev/null 2>&1 && echo "docker co
 build:
 	-docker pull ${BUILDER_IMAGE} | awk '{ print } /Downloaded newer image/ { system("${DOCKER_COMPOSE} down"); }'
 	${DOCKER_COMPOSE} ls | grep atomcam_tools > /dev/null || ${DOCKER_COMPOSE} up -d
-	${DOCKER_COMPOSE} exec builder /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
+	${DOCKER_COMPOSE} exec -e ATOMHACKVER_SUFFIX=$(ATOMHACKVER_SUFFIX) builder /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
 
 build-local:
 	${DOCKER_COMPOSE} ls | grep atomcam_tools > /dev/null || ${DOCKER_COMPOSE} up -d
-	${DOCKER_COMPOSE} exec builder /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
+	${DOCKER_COMPOSE} exec -e ATOMHACKVER_SUFFIX=$(ATOMHACKVER_SUFFIX) builder /src/buildscripts/build_all | tee rebuild_`date +"%Y%m%d_%H%M%S"`.log
 
 docker-build:
 	docker build -t ${BUILDER_IMAGE}${DOCKER_ARCH} . | tee docker-build_`date +"%Y%m%d_%H%M%S"`.log
