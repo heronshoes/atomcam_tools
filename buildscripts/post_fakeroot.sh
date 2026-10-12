@@ -9,7 +9,7 @@ echo "Executing pre filesystem image creation script"
 /src/buildscripts/local_build.sh
 
 find $TARGET_DIR -name .DS_Store -delete
-cp /src/configs/atomhack.ver $TARGET_DIR/etc
+echo "`cat /src/configs/atomhack.ver`${ATOMHACKVER_SUFFIX}" > $TARGET_DIR/etc/atomhack.ver
 
 DEFAULT_IMAGE_DIR="/atomtools/build/buildroot-2016.02/output/images"
 BASE_DIR=${BASE_DIR:-/atomtools/build/buildroot-2016.02/output}
