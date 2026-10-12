@@ -19,7 +19,14 @@ WEBHOOK_RECORD_EVENT=$(awk -F "=" '/^WEBHOOK_RECORD_EVENT *=/ {print $2}' $HACK_
 HOSTNAME=`hostname`
 # recording start time from the file name: /media/mmc/record/YYYYMMDD/HH/MM.mp4
 TIME=`echo $2 | sed -e 's|^/media/mmc/record/||' -e 's|/||g' -e 's|.mp4$||'`
-RECTIME=`date -d $TIME +"%w %H %M"`
+case "$TIME" in
+  [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9])
+    # date -d normalizes out-of-range values, so check that it converts back to the same string
+    [ "`date -d $TIME +%Y%m%d%H%M 2> /dev/null`" = "$TIME" ] && RECTIME=`date -d $TIME +"%w %H %M"`
+  ;;
+esac
+# fall back to the current time if the file name is not in the expected format
+[ "$RECTIME" = "" ] && RECTIME=`date +"%w %H %M"`
 
 if [ "$PERIODICREC_SCHEDULE" = "on" ]; then
   FMT=`awk '
