@@ -158,33 +158,62 @@ fi
 
 # --- periodic recording ---
 # A file is written for every minute: /media/mmc/record/YYYYMMDD/HH/MM.mp4
+# PERIODICREC_SCHEDULE_LIST: [index_NN];Rule=<bit (1<<weekday), Mon=1..Sun=7>;ContinueTime=<min>;StartTime=<min>;...
+# ContinueTime is negative when the period crosses midnight.
+# Prints the minutes since the active period started, or nothing outside the schedule.
+schedule_elapsed() { # list weekday(1-7) minute-of-day
+  echo "$1" | tr ';' '\n' | awk -F= -v w=$2 -v m=$3 '
+    function on(d) { return int(rule / 2 ^ d) % 2; }
+    $1 == "Rule" { rule = $2; }
+    $1 == "ContinueTime" { len = ($2 <= 0) ? $2 + 1440 : $2; }
+    $1 == "StartTime" {
+      if(on(w) && m >= $2 && m < $2 + len) { print m - $2; exit; }
+      if(on(w == 1 ? 7 : w - 1) && m + 1440 < $2 + len) { print m + 1440 - $2; exit; }
+    }'
+}
+
 if [ "$(echo "$ini" | sed -ne 's/^PERIODICREC_SDCARD=//p')" != "on" ]; then
   skip "recording: periodic recording to SD card" "PERIODICREC_SDCARD is not on"
 else
   rec=$(remote 'cut -d. -f1 /proc/uptime
+    date +"%u %H %M %S"
     f=$(ls -t $(find /media/mmc/record -name "*.mp4" -mmin -3) 2> /dev/null | sed -n 2p)
     echo "$f"
     [ -n "$f" ] && ls -l "$f" | awk "{ print \$5 }" && dd if="$f" bs=1 skip=4 count=4 2> /dev/null && echo
     find /media/mmc/record -name "*.mp4" -mmin -5 | wc -l')
-  uptime=$(echo "$rec" | sed -n 1p)
-  file=$(echo "$rec" | sed -n 2p)
-  if [ -z "$file" ]; then
-    if [ "$uptime" -lt 180 ]; then
-      skip "recording: periodic recording to SD card" "just booted (${uptime}s)"
+  # seconds since recording should have started: since boot, or since the schedule period started
+  started=$(echo "$rec" | sed -n 1p)
+  reason="just booted"
+  if [ "$(echo "$ini" | sed -ne 's/^PERIODICREC_SCHEDULE=//p')" = "on" ]; then
+    set -- $(echo "$rec" | sed -n 2p)
+    elapsed=$(schedule_elapsed "$(echo "$ini" | sed -ne 's/^PERIODICREC_SCHEDULE_LIST=//p')" $1 $((10#$2 * 60 + 10#$3)))
+    if [ -z "$elapsed" ]; then
+      started=
+    elif [ $((elapsed * 60 + 10#$4)) -lt $started ]; then
+      started=$((elapsed * 60 + 10#$4))
+      reason="schedule just started"
+    fi
+  fi
+  file=$(echo "$rec" | sed -n 3p)
+  if [ -z "$started" ]; then
+    skip "recording: periodic recording to SD card" "outside PERIODICREC_SCHEDULE_LIST"
+  elif [ -z "$file" ]; then
+    if [ "$started" -lt 180 ]; then
+      skip "recording: periodic recording to SD card" "$reason (${started}s)"
     else
       fail "recording: periodic recording to SD card" "no mp4 file in the last 3 minutes"
     fi
   else
-    size=$(echo "$rec" | sed -n 3p)
-    type=$(echo "$rec" | sed -n 4p)
-    count=$(echo "$rec" | sed -n 5p)
+    size=$(echo "$rec" | sed -n 4p)
+    type=$(echo "$rec" | sed -n 5p)
+    count=$(echo "$rec" | sed -n 6p)
     if [ "$size" -ge 100000 ] && [ "$type" = "ftyp" ]; then
       pass "recording: periodic recording to SD card (${file#/media/mmc/record/} ${size}bytes)"
     else
       fail "recording: periodic recording to SD card" "$file size:$size type:$type"
     fi
-    if [ "$uptime" -lt 360 ]; then
-      skip "recording: no gap in the last 5 minutes" "just booted (${uptime}s)"
+    if [ "$started" -lt 360 ]; then
+      skip "recording: no gap in the last 5 minutes" "$reason (${started}s)"
     elif [ "$count" -ge 4 ]; then
       pass "recording: no gap in the last 5 minutes ($count files)"
     else
