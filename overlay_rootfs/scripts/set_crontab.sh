@@ -30,4 +30,14 @@ BEGIN {
     printf("%s %d\n", schedule[i], i);
   }
 }
+
+/^PRESET_SCHEDULE *=/ {
+  n = split($2, preset, ";");
+  for(i = 1; i <= n; i++) {
+    if(!match(preset[i], /^ *[0-9]?[0-9]:[0-5][0-9] /)) continue;
+    split(substr(preset[i], RSTART, RLENGTH), t, ":");
+    if(t[1] > 23) continue;
+    printf("%d %d * * * /scripts/preset.sh run %d >> /media/mmc/atomhack.log 2>&1\n", t[2], t[1], i);
+  }
+}
 ' $HACK_INI | crontab -
