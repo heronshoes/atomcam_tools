@@ -31,6 +31,7 @@ extern int save_jpeg(int fd, int *stream);
 extern void video_param_set_mutex_unlock();
 extern void CommandResponse(int fd, const char *res);
 extern char CommandResBuf[];
+extern int MeteorWriteJpeg(int ch, int fd, const char *header);
 
 static const char *HttpResHeader = "Cache-Control: no-cache\nContent-Type: image/jpeg\n\n";
 static const char *HttpErrorHeader = "Cache-Control: no-cache\nStatus: 503\n\n";
@@ -88,6 +89,12 @@ static int GetJpegData(int fd, int ch, int header) {
 
   DebugCount++;
   DebugSequence = 11;
+  // the JPEG channel is streamed by the meteor recorder
+  int res = MeteorWriteJpeg(ch, fd, header ? HttpResHeader : NULL);
+  if(res != -1) {
+    if((res < 0) && header) write(fd, HttpErrorHeader, strlen(HttpErrorHeader));
+    return res;
+  }
   struct channelConfigSt *chConfig = get_enc_chn_config(ch);
   if (!chConfig->state) {
     fprintf(stderr, "[command] jpeg err: ch%d is not enable jpeg!\n", ch);
