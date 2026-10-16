@@ -71,6 +71,7 @@ case "$1" in
     done
     /scripts/set_icamera_config.sh
     /scripts/cmd timelapse restart
+    /scripts/preset.sh current >> /media/mmc/atomhack.log 2>&1 &
     [ -x /media/mmc/post_icamera.sh ] && /media/mmc/post_icamera.sh start
   ;;
   stop)

@@ -529,6 +529,7 @@
           WEBHOOK_TIMELAPSE_FINISH: 'off',
           CRUISE: 'off',
           CRUISE_LIST: '',
+          PRESET_SCHEDULE: '', // -> /var/spool/crontabs/root (/scripts/preset.sh)
           MINIMIZE_ALARM_CYCLE: 'off',
           AWS_VIDEO_DISABLE: 'off',
           CUSTOM_ZIP: 'off',
@@ -1425,7 +1426,8 @@
         const execCmds = [];
         let href = null;
         if((this.config.TIMELAPSE_SCHEDULE !== this.oldConfig.TIMELAPSE_SCHEDULE) ||
-           (this.config.REBOOT_SCHEDULE !== this.oldConfig.REBOOT_SCHEDULE)) {
+           (this.config.REBOOT_SCHEDULE !== this.oldConfig.REBOOT_SCHEDULE) ||
+           (this.config.PRESET_SCHEDULE !== this.oldConfig.PRESET_SCHEDULE)) {
           execCmds.push('setCron');
         }
         if((this.config.PERIODICREC_SDCARD !== this.oldConfig.PERIODICREC_SDCARD) ||
