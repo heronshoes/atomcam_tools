@@ -4,6 +4,7 @@
 # PRESET_SCHEDULE=20:00 move 180 120|night off|video expr manual 2000;05:00 move 90 90|night auto|video expr auto;
 #    <HH:MM> <cmd>[|<cmd>...]  Run the commands every day at HH:MM.
 #    <cmd> is a libcallback command (see /scripts/cmd), e.g. move, night, video, property, jpeg.
+#    meteor start          waits until 3 minutes after boot (an earlier start gets iCamera_app killed).
 #    move <pan> <tilt> [<speed>]  speed defaults to 5 (9 loses steps). The camera first returns to
 #                                 0/0 to resync the position after manual moves, then approaches
 #                                 the target from below so the backlash is always on the same side.
@@ -45,6 +46,12 @@ run_cmd() {
   if [ "$1" = "video" -a "$2" = "sharp" ] && [ "$3" -gt 128 ] 2> /dev/null ; then
     echo "skip : $* : sharp over 128 crashes iCamera_app"
     return
+  fi
+  if [ "$1" = "meteor" -a "$2" = "start" ] ; then
+    # iCamera_app gets killed when recording starts within a minute after boot; wait until up 3 minutes
+    while [ "$(cut -d. -f1 /proc/uptime)" -lt 180 ] ; do
+      sleep 5
+    done
   fi
   if [ "$1" = "move" -a "$3" != "" ] ; then
     speed=${4:-5}
