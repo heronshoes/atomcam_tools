@@ -31,6 +31,7 @@ extern char *CenterMark(int fd, char *tokenPtr);
 extern char *Property(int fd, char *tokenPtr);
 extern char *Watermark(int fd, char *tokenPtr);
 extern char *SkipRecordJpeg(int fd, char *tokenPtr);
+extern char *Meteor(int fd, char *tokenPtr);
 //extern char *MemoryAccess(int fd, char *tokenPtr);
 
 char *CommandResBuf[256];
@@ -60,6 +61,7 @@ struct CommandTableSt CommandTable[] = {
   { "property",   &Property },
   { "watermark",  &Watermark },
   { "skipRecJpeg",&SkipRecordJpeg },
+  { "meteor",     &Meteor },
 //  { "mem",        &MemoryAccess },
 };
 

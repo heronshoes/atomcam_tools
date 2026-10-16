@@ -207,6 +207,8 @@ skipRecJpeg [on|off]
 
 skipRecJpegがonの場合、指定chの静止画をjpegとして記録する時にpathを比較して/media/mmc/record/以下の場合は無視する。
 
+meteorで録画中のchの場合は、録画中の最新フレームをpathに書き込む。
+
 
 
 
@@ -223,6 +225,8 @@ jpeg [<ch:default 0>] [-n]
 -nを指定しない場合、httpのres headerをつけて返す。
 
 -nを指定した場合、生のjpegデータを返す。
+
+meteorで録画中のchの場合は、録画中の最新フレームを返す。
 
 
 
@@ -267,6 +271,32 @@ pan, tiltを指定した場合、その方向まで向きを変える。
 移動している間は次の移動コマンドはエラーになる。
 
 移動し終わるとpan, tilt, flip, vflipの値を返す。
+
+
+
+### meteor.c
+
+##### commandIF
+
+```
+meteor start [<ch:default 0>]
+meteor stop
+meteor
+```
+
+流星撮影用に、指定chのJPEGエンコーダーの全フレームをMJPEGのmp4として/media/mmc/meteor/YYYYMMDD/HH/MM.mp4に1分毎に記録する。
+
+同じ分のファイルが既にある場合はMM_SS.mp4になる。
+
+各フレームにエンコーダーのタイムスタンプを付けて記録する(可変フレームレート)ので、フレームレートはvideo fpsに従う。画質はhack.iniのJPEG_QUALITYに従う。
+
+SDカードの空きがhack.iniのMETEOR_MIN_FREE_MB(default 2048)を下回ると/media/mmc/meteor/以下の古いファイルから削除する。削除できるファイルが無くなると記録を中断してerrorを表示する。
+
+stopは記録を停止する。
+
+引数無しは記録状態(ファイル、取得・書き込み・取りこぼしたフレーム数、削除したファイル数)を返す。
+
+録画中のchのjpeg、local_sdk_video_get_jpegは録画中の最新フレームを返す。
 
 
 
