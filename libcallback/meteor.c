@@ -703,9 +703,12 @@ static void *Writer(void *arg) {
 
     time_t t = (frame->timestamp + TimeOffset) / 1000000;
     if((Segment.fd >= 0) && (t / 60 != Segment.minute)) {
+      int minute = Segment.minute;
       CloseSegment();
       UpdateTimeOffset();
       t = (frame->timestamp + TimeOffset) / 1000000;
+      // the new offset can move t back into the closed minute; keep it in the next one
+      if(t / 60 <= minute) t = (time_t)(minute + 1) * 60;
     }
     if(Segment.fd < 0) OpenSegment(frame, t);
     if((Segment.fd >= 0) && (WriteFrame(frame) < 0)) {
