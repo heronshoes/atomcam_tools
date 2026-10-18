@@ -105,10 +105,10 @@ AdvancedSettings:
     tooltip: The min value of integration time, the unit is line.
   aeitmax:
     title: AE ITMax
-    tooltip: The max value of integration time, the unit is line.
+    tooltip: The max value of integration time, the unit is line (about 28 µs). 1683 is about 47 ms (fits a frame at 20 fps), 3500 about 99 ms (fits a frame at 10 fps).
   expline:
     title: Exposure line
-    tooltip: Setting Exposure integration line.
+    tooltip: Setting Exposure integration line (about 28 µs per line).
 
 SDCard:
   title: SD Card
