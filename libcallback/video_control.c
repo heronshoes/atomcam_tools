@@ -64,6 +64,22 @@ extern int IMP_ISP_Tuning_GetMaxAgain(uint32_t *gain);
 extern int IMP_ISP_Tuning_SetMaxDgain(uint32_t gain);
 extern int IMP_ISP_Tuning_GetMaxDgain(uint32_t *gain);
 
+// Current sensor gain (total in [24.8] fixed point) and exposure.
+extern int IMP_ISP_Tuning_GetTotalGain(uint32_t *gain);
+typedef struct {
+  uint32_t ev;
+  uint32_t expr_us;
+  uint32_t ev_log2;
+  uint32_t again;
+  uint32_t dgain;
+  uint32_t gain_log2;
+  uint32_t reserved[26]; // room in case the SDK struct is larger
+} IMPISPEVAttr;
+extern int IMP_ISP_Tuning_GetEVAttr(IMPISPEVAttr *attr);
+
+// Average luma of the AE statistics.
+extern int IMP_ISP_Tuning_GetAeLuma(int *luma);
+
 // ISP image mirror(horizontal) effect function (enable/disable)
 extern int IMP_ISP_Tuning_SetISPHflip(int mode);
 extern int IMP_ISP_Tuning_GetISPHflip(int *pmode);
@@ -138,6 +154,7 @@ static char *DRC(char *tokenPtr);
 static char *HiLight(char *tokenPtr);
 static char *AGain(char *tokenPtr);
 static char *DGain(char *tokenPtr);
+static char *Gain(char *tokenPtr);
 static char *Expr(char *tokenPtr);
 static char *Bitrate(char *tokenPtr);
 static char *Framerate(char *tokenPtr);
@@ -162,6 +179,7 @@ static struct CommandTableSt VideoCommandTable[] = {
   { "hilight",   &HiLight }, // hilight 0 - 10
   { "again",     &AGain }, // again 0 -
   { "dgain",     &DGain }, // dgain 0 -
+  { "gain",      &Gain }, // gain : total(x256) again dgain expr_us luma
   { "expr",      &Expr }, // expr manual|auto <time>
   { "bitrate",   &Bitrate }, // bitrate <ch> 10-3000(kbps)|auto
   { "fps",       &Framerate }, // fps <ch> 1-30(fps)|auto
@@ -481,6 +499,19 @@ static char *DGain(char *tokenPtr) {
   }
   int res = IMP_ISP_Tuning_SetMaxDgain(atoi(p));
   return res ? "error": "ok";
+}
+
+static char *Gain(char *tokenPtr) {
+
+  uint32_t total = 0;
+  IMPISPEVAttr ev;
+  int luma = 0;
+  memset(&ev, 0, sizeof(ev));
+  IMP_ISP_Tuning_GetTotalGain(&total);
+  IMP_ISP_Tuning_GetEVAttr(&ev);
+  IMP_ISP_Tuning_GetAeLuma(&luma);
+  sprintf(CommandResBuf, "%u %u %u %u %d\n", total, ev.again, ev.dgain, ev.expr_us, luma);
+  return CommandResBuf;
 }
 
 static char *Expr(char *tokenPtr) {

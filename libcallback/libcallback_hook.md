@@ -488,6 +488,7 @@ video drc 0 - 255
 video hilight 0 - 10
 video again 0 -
 video dgain 0 -
+video gain
 video expr manual|auto <time>
 video bitrate <ch> 10-3000(kbps)|auto
 video fps <ch> 1-30(fps)|auto
@@ -512,6 +513,8 @@ video aecompは自動露出設定。
 video aeitmaxは自動露出関連、よくわからない。
 
 video dpc,drc,hilight,again, dgainこのあたりもよくわからない。
+
+video gainは現在のゲインと露出を表示する（読み出しのみ）。total(256で1倍) again dgain 露出時間(us) AE平均輝度の順。夜はゲインが画面のノイズ量の目安になる。
 
 video exprは露出設定のauto/manualの切り替えだけど、manualだと安定しない。
 
