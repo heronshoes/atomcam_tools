@@ -96,10 +96,10 @@
           <div v-if="ISPSettings.expmode === 'auto'">
             <SettingSlider i18n="AdvancedSettings.aecomp" v-model="ISPSettings.aecomp" :min="0" :max="255" :defaultValue="128" :stemp="1" @input="ISPSet('aecomp')" />
             <SettingSlider i18n="AdvancedSettings.aeitmin" v-model="ISPSettings.aeitmin" :min="1" :max="ISPSettings.aeitmax" :defaultValue="1" :stemp="1" @input="ISPSet('aeitmin')" />
-            <SettingSlider i18n="AdvancedSettings.aeitmax" v-model="ISPSettings.aeitmax" :min="ISPSettings.aeitmin" :max="1683" :defaultValue="1683" :stemp="1" @input="ISPSet('aeitmax')" />
+            <SettingSlider i18n="AdvancedSettings.aeitmax" v-model="ISPSettings.aeitmax" :min="ISPSettings.aeitmin" :max="aeitmaxLimit" :defaultValue="1683" :stemp="1" @input="ISPSet('aeitmax')" />
           </div>
           <div v-else>
-            <SettingSlider i18n="AdvancedSettings.expline" v-model="ISPSettings.expline" :min="1" :max="1683" :defaultValue="1200" :stemp="1" @input="ISPSet('expline')" />
+            <SettingSlider i18n="AdvancedSettings.expline" v-model="ISPSettings.expline" :min="1" :max="aeitmaxLimit" :defaultValue="1200" :stemp="1" @input="ISPSet('expline')" />
           </div>
 
           <div v-if="selectedTab === 'CameraSettings'">
@@ -548,6 +548,9 @@
           aeitmax: 1683,
           expline: 1200,
         },
+        ispLoading: true, // the sliders also emit input while the values are loaded; send nothing until done
+        ispApplied: {}, // values the camera uses now; a slider input equal to these is not sent
+        aeitmaxLimit: 1683,
         loginAuth: 'off',
         loginAuth2: 'off',
         relm: 'atomcam',
@@ -709,6 +712,22 @@
           }
         }
       });
+      // show the values the camera uses now (a preset may have changed them since the file was saved)
+      for(const item of ['cont', 'bri', 'sat', 'sharp', 'dpc', 'drc', 'hilight', 'again', 'dgain', 'aecomp']) {
+        const v = parseInt((await this.Exec(`video ${item}`, 'socket'))?.data);
+        if(!isNaN(v)) this.$set(this.ISPSettings, item, v);
+      }
+      const expr = ((await this.Exec('video expr', 'socket'))?.data ?? '').trim().split(/\s+/);
+      if((expr.length >= 4) && ['auto', 'manual'].includes(expr[0])) {
+        this.$set(this.ISPSettings, 'expmode', expr[0]);
+        if(expr[0] === 'manual') this.$set(this.ISPSettings, 'expline', parseInt(expr[1]));
+        this.$set(this.ISPSettings, 'aeitmin', parseInt(expr[2]));
+        this.$set(this.ISPSettings, 'aeitmax', parseInt(expr[3]));
+      }
+      // do not let the 1683 slider limit clamp (and send) a longer exposure set by a command
+      this.aeitmaxLimit = Math.max(1683, this.ISPSettings.aeitmax, this.ISPSettings.expline);
+      this.ispApplied = Object.assign({}, this.ISPSettings);
+      this.ispLoading = false;
       // eslint-disable-next-line no-console
       console.log('video isp', this.ISPSettings);
 
@@ -1024,6 +1043,8 @@
         }, 1000);
       },
       async ISPSet(item) {
+        if(this.ispLoading || (this.ISPSettings[item] === this.ispApplied[item])) return;
+        this.ispApplied[item] = this.ISPSettings[item];
         if(this.ispSettingsTimeoutID) clearTimeout(this.ispSettingsTimeoutID);
         this.ispSettingsTimeoutID = setTimeout(async () => {
           if(['aeitmin', 'aeitmax', 'expmode', 'expline'].indexOf(item) >= 0) {
