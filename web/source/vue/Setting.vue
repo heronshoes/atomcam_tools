@@ -550,7 +550,7 @@
         },
         ispLoading: true, // the sliders also emit input while the values are loaded; send nothing until done
         ispApplied: {}, // values the camera uses now; a slider input equal to these is not sent
-        aeitmaxLimit: 1683,
+        aeitmaxLimit: 3500,
         loginAuth: 'off',
         loginAuth2: 'off',
         relm: 'atomcam',
@@ -724,8 +724,8 @@
         this.$set(this.ISPSettings, 'aeitmin', parseInt(expr[2]));
         this.$set(this.ISPSettings, 'aeitmax', parseInt(expr[3]));
       }
-      // do not let the 1683 slider limit clamp (and send) a longer exposure set by a command
-      this.aeitmaxLimit = Math.max(1683, this.ISPSettings.aeitmax, this.ISPSettings.expline);
+      // do not let the slider limit clamp (and send) a longer exposure set by a command
+      this.aeitmaxLimit = Math.max(3500, this.ISPSettings.aeitmax, this.ISPSettings.expline);
       this.ispApplied = Object.assign({}, this.ISPSettings);
       this.ispLoading = false;
       // eslint-disable-next-line no-console
