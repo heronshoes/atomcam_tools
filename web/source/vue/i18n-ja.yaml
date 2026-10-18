@@ -105,10 +105,10 @@ AdvancedSettings:
     tooltip: The min value of integration time, the unit is line.
   aeitmax:
     title: AE ITMax
-    tooltip: The max value of integration time, the unit is line.
+    tooltip: 露光時間の上限（ライン単位、1ライン約28µs）。1683で約47ms（20fpsの1フレームに収まる）、3500で約99ms（10fpsの1フレームに収まる）。
   expline:
     title: Exposure line
-    tooltip: Setting Exposure integration line.
+    tooltip: 露光時間（ライン単位、1ライン約28µs）。
 
 SDCard:
   tab: SD Card
