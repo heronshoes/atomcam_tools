@@ -5,6 +5,7 @@
 #    <HH:MM> <cmd>[|<cmd>...]  Run the commands every day at HH:MM.
 #    <cmd> is a libcallback command (see /scripts/cmd), e.g. move, night, video, property, jpeg.
 #    meteor start          waits until 3 minutes after boot (an earlier start gets iCamera_app killed).
+#                          When a later preset runs in the meantime, the rest of this preset is skipped.
 #    move <pan> <tilt> [<speed>]  speed defaults to 5 (9 loses steps). The camera first returns to
 #                                 0/0 to resync the position after manual moves, then approaches
 #                                 the target from below so the backlash is always on the same side.
@@ -13,6 +14,8 @@
 #        preset.sh current    apply the entry in effect now (at boot)
 
 HACK_INI=${HACK_INI:-/tmp/hack.ini}
+# the preset applied last; an earlier preset still waiting stops when it is replaced
+PRESET_RUNNING=/tmp/preset_running
 PRESET_SCHEDULE=$(awk -F "=" '/^PRESET_SCHEDULE *=/ {print $2}' $HACK_INI)
 
 # print the index of the entry whose time is the latest at or before now (wraps to the previous day)
@@ -39,6 +42,10 @@ current_index() {
   ' now=$(date +"%H %M" | awk '{print $1 * 60 + $2}')
 }
 
+superseded() {
+  [ "$(cat $PRESET_RUNNING 2> /dev/null)" != "$$" ]
+}
+
 run_cmd() {
   IFS=" "
   set -- $1
@@ -51,6 +58,10 @@ run_cmd() {
     # iCamera_app gets killed when recording starts within a minute after boot; wait until up 3 minutes
     while [ "$(cut -d. -f1 /proc/uptime)" -lt 180 ] ; do
       sleep 5
+      if superseded ; then
+        echo `date +"%Y/%m/%d %H:%M:%S"` : skip : $* : a later preset has run
+        return
+      fi
     done
   fi
   if [ "$1" = "move" -a "$3" != "" ] ; then
@@ -67,8 +78,13 @@ apply() {
   entry=$(echo $entry)
   [ "$entry" = "" ] && echo "preset $1 : not found" && return 1
   echo `date +"%Y/%m/%d %H:%M:%S"` : preset $1 : $entry
+  echo $$ > $PRESET_RUNNING
   IFS="|"
   for cmd in ${entry#* } ; do
+    if superseded ; then
+      echo `date +"%Y/%m/%d %H:%M:%S"` : skip : $cmd : a later preset has run
+      continue
+    fi
     run_cmd "$cmd"
   done
 }
