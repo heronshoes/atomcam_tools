@@ -519,6 +519,7 @@ schedule:
 
 submit: Submit
 executing: Updating. Please wait a bit.
+hackIniConflict: The settings (hack.ini) were changed after this page was loaded (in another page, over SSH, etc.). They were not saved so that the change is not overwritten. Reload the page? (What you entered on this page will be lost.)
 erasing: Erasing SD-Card. Please wait a bit.
 downloading: Downloading now. Please wait a bit.
 downloadError: Download failed. Please give it some time and try again.

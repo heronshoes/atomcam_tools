@@ -528,6 +528,7 @@
           JPEG_QUALITY: '32',      // ch4/ch5 JPEG snapshots (takes effect after reboot)
           BITRATE_MAIN_HEVC: -800, // ch3 H265 HD   MobileApp,    RTSP HEVC Main
           TIMESTAMP_SIZE: '100',
+          HACK_INI_VERSION: '',    // hack.ini when this page loaded it (hack_ini.cgi refuses a save over newer changes)
         },
         property: {},
         ISPSettings: {
@@ -1355,10 +1356,18 @@
         }
         this.config.HOMEKIT_SOURCE = this.RtspUrl0.replace(/^rtsp:\/\/.*:/, 'rtsp://localhost:');
 
-        await axios.post('./cgi-bin/hack_ini.cgi', this.config).catch(err => {
+        const res = await axios.post('./cgi-bin/hack_ini.cgi', this.config).catch(err => {
           // eslint-disable-next-line no-console
           console.log('axios.post ./cgi-bin/hack_ini.cgi', err);
+          return err.response;
         });
+        if(res?.status === 409) {
+          // hack.ini was changed after this page loaded it; saving would overwrite the change
+          if(window.confirm(this.$t('hackIniConflict'))) window.location.reload();
+          return;
+        }
+        const version = (res?.data ?? '').match(/^HACK_INI_VERSION=(\w+)/m);
+        if(version) this.config.HACK_INI_VERSION = version[1];
         // eslint-disable-next-line no-console
         console.log('config', this.config);
 
