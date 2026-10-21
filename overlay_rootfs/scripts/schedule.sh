@@ -13,7 +13,9 @@
 #   - a reboot stops a timelapse, or comes before its file is finished
 #   - timelapses overlap, or presets run at the same minute
 #   - a PRESET_SCHEDULE entry is ignored or has a command that crashes iCamera_app
-#   - the installed crontab differs from hack.ini
+#   - the installed crontab differs from hack.ini (only for /tmp/hack.ini)
+#
+# HACK_INI=<file> schedule.sh shows other settings, e.g. the Web UI before saving (schedule.cgi)
 
 HACK_INI=${HACK_INI:-/tmp/hack.ini}
 # minutes after a reboot before iCamera_app takes commands
@@ -33,8 +35,12 @@ TAB=`printf '\t'`
 TMP=/tmp/schedule.$$
 trap "rm -f $TMP.*" EXIT
 HACK_INI=$HACK_INI /scripts/set_crontab.sh -n > $TMP.cron || exit 1
-crontab -l > $TMP.installed 2> /dev/null
-cmp -s $TMP.cron $TMP.installed && CRON_OK=1 || CRON_OK=0
+# the installed crontab is compared only for the settings in use (not for a preview of other settings)
+CRON_OK=1
+if [ "$HACK_INI" = "/tmp/hack.ini" ] ; then
+  crontab -l > $TMP.installed 2> /dev/null
+  cmp -s $TMP.cron $TMP.installed || CRON_OK=0
+fi
 
 awk -v cronok=$CRON_OK -v bootmin=$BOOT_MIN -v meteorwait=$METEOR_WAIT_MIN -v tlfinish=$TIMELAPSE_FINISH_MIN '
   # days are a string of 7 flags, Sun..Sat
