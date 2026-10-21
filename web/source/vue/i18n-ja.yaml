@@ -489,6 +489,26 @@ reboot:
     tooltip: 再起動します
     button: Reboot
 
+scheduleSettings:
+  heading: プリセット
+  tab: スケジュール
+  preset:
+    title: 時刻とコマンド
+    tooltip: 指定した時刻に、カメラの向きや撮影条件を切り替えるコマンドを実行します
+    placeholder: move 305 105|property nightVision auto|meteor start 0
+  presetNote:
+    comment: |
+      コマンドは | で区切って並べます（move, night, video, property, jpeg, meteor など /scripts/cmd のコマンド）。
+      meteor start は起動から3分たつまで待ってから始まります。
+      カメラが起動したときは、その時刻に有効なプリセットをもう一度実行します。
+  list:
+    title: スケジュール一覧
+  refresh:
+    title: この画面の設定で表示
+    tooltip: 定期再起動、タイムラプス、プリセット、録画スケジュールを時刻順に並べ、重なりなどを警告します。保存前の変更も含みます
+    button: 更新
+  confirm: "スケジュールに次の警告があります。このまま保存しますか？\n\n{warnings}"
+
 schedule:
   allDay: 終日
   startTime: 開始時間

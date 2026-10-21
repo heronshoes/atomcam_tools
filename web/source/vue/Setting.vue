@@ -322,6 +322,22 @@
           </div>
         </ElTabPane>
 
+        <!-- Schedule Tab -->
+        <ElTabPane name="schedule" class="well-transparent container" :label="$t('scheduleSettings.tab')">
+          <h3 v-t="'scheduleSettings.heading'" />
+          <SettingPreset v-for="(preset, idx) of presetSchedule" :key="'preset'+idx" :i18n="idx ? '' : 'scheduleSettings.preset'" v-model="presetSchedule[idx]" @add="AddPreset(idx + 1)" @remove="DeletePreset(idx)" />
+          <SettingButton v-if="!presetSchedule.length" i18n="scheduleSettings.preset" button="+" @click="AddPreset(0)" />
+          <SettingComment i18n="scheduleSettings.presetNote" />
+          <h3 v-t="'scheduleSettings.list.title'" />
+          <SettingButton i18n="scheduleSettings.refresh" @click="PreviewSchedule" />
+          <ElRow>
+            <ElCol :offset="1" :span="22">
+              <pre class="schedule-list"><span v-for="(line, idx) of scheduleList" :key="'schedule'+idx" :class="{ 'schedule-warn': line.indexOf('WARN:') === 0 }">{{ line }}
+</span></pre>
+            </ElCol>
+          </ElRow>
+        </ElTabPane>
+
         <!-- System Setting Tab -->
         <ElTabPane name="systemSettings" class="well-transparent container" :label="$t('systemSettings.tab')">
           <h3 v-t="'deviceSettings.title'" />
@@ -401,6 +417,7 @@
   import SettingProgress from './SettingProgress.vue';
   import SettingCruise from './SettingCruise.vue';
   import SettingSlider from './SettingSlider.vue';
+  import SettingPreset from './SettingPreset.vue';
   import QrcodeVue from 'qrcode.vue';
 
   import 'element-ui/lib/theme-chalk/drawer.css';
@@ -430,6 +447,7 @@
       SettingProgress,
       SettingCruise,
       SettingSlider,
+      SettingPreset,
       QrcodeVue,
     },
     data() {
@@ -591,6 +609,9 @@
         rtspRestart: false,
         cruiseList: [],
         cruiseSelect: -1,
+        presetSchedule: [],
+        scheduleList: [],
+        scheduleLoaded: false,
         reboot: {
           startTime: '02:00',
           endTime: '02:00',
@@ -695,6 +716,15 @@
         return d;
       }, Object.assign({}, this.config));
       this.config = Object.assign({}, this.oldConfig);
+
+      // PRESET_SCHEDULE=HH:MM <cmd>|<cmd>...;HH:MM ...; (an entry without the time is kept as it is)
+      this.presetSchedule = (this.config.PRESET_SCHEDULE || '').split(';').flatMap(entry => {
+        entry = entry.trim();
+        if(entry === '') return [];
+        const m = entry.match(/^(\d?\d):([0-5]\d) +(.*)$/);
+        if(!m) return [{ time: '', commands: entry }];
+        return [{ time: `${m[1].padStart(2, '0')}:${m[2]}`, commands: m[3].trim() }];
+      });
       // eslint-disable-next-line no-console
       console.log('config', this.config);
 
@@ -888,6 +918,9 @@
           dayOfWeekSelect: days.map(d => (parseInt(d) + 6) % 7),
         };
       }
+      // the schedules are all read (the Schedule tab may have been opened before)
+      this.scheduleLoaded = true;
+      if(this.selectedTab === 'schedule') this.PreviewSchedule();
 
       setInterval(async () => {
         const res = await axios.get('./cgi-bin/cmd.cgi?name=status').catch(err => {
@@ -1128,6 +1161,7 @@
         this.selectedTabIndex = parseInt(tab.index);
         if(this.selectedTab === 'CameraSettings') this.GetCameraProperty();
         if(this.selectedTab === 'maintenance') this.GetLatestVer();
+        if(this.selectedTab === 'schedule') this.PreviewSchedule();
         if(this.selectedTab === 'SDCard') {
           if(!this.sdcardIntervalID) this.sdcardIntervalID = setInterval(() => {
             this.showMediaSize = this.$refs.sdcardFrame?.contentDocument?.title?.indexOf('Index of') === 0;
@@ -1193,6 +1227,65 @@
       DeleteTimelapseSchedule(i) {
         if(!this.timelapseSchedule.length) this.$set(this.config, 'timelapse', 'off');
         this.timelapseSchedule.splice(i, 1);
+      },
+      AddPreset(i) {
+        this.presetSchedule.splice(i, 0, { time: '', commands: '' });
+      },
+      DeletePreset(i) {
+        this.presetSchedule.splice(i, 1);
+      },
+      // the hack.ini values of the schedules set on this page
+      ScheduleConfig() {
+        const config = {};
+        for(let schedule of ['periodicRec', 'alarmRec']) {
+          const confKey = schedule.toUpperCase() + '_SCHEDULE_LIST';
+          const innerKey = schedule + 'Schedule';
+          let str = '';
+          for(const i in this[innerKey]) {
+            const timeTable = this[innerKey][i];
+            str += `[index_${(i - 0 + 1).toString().padStart(2, '0')}];`;
+            const val = timeTable.dayOfWeekSelect.reduce((v, d) => v | (2 << d), 0);
+            str += `Rule=${val};`;
+            const stime = parseInt((timeTable.startTime ?? '0').slice(0, 2)) * 60 + parseInt((timeTable.startTime ?? '0').slice(-2));
+            const etime = parseInt((timeTable.endTime ?? '0').slice(0, 2)) * 60 + parseInt((timeTable.endTime ?? '0').slice(-2)) + 1;
+            str += `ContinueTime=${etime - stime};`;
+            str += `StartTime=${stime};`;
+            str += `Status=1;`;
+            str += `DelFlags=1;`;
+          }
+          config[confKey] = str;
+        }
+
+        config.TIMELAPSE_SCHEDULE = this.timelapseSchedule.reduce((str, schedule) => {
+          str += parseInt(schedule.startTime.slice(-2)) + ' ' +
+          parseInt(schedule.startTime.slice(0, 2)) + ' * * ' +
+          schedule.dayOfWeekSelect.sort((a, b) => a - b).reduce((v, d) => v + (v.length ? ':' : '') + ((d + 1) % 7).toString(), '') +
+          ' /scripts/timelapse.sh start ' + schedule.interval + ' ' + schedule.count + ';';
+          return str;
+        }, '');
+
+        config.REBOOT_SCHEDULE = parseInt(this.reboot.startTime.slice(-2)) + ' ' +
+          parseInt(this.reboot.startTime.slice(0, 2)) + ' * * ' +
+          this.reboot.dayOfWeekSelect.sort((a, b) => a - b).reduce((v, d) => v + (v.length ? ':' : '') + ((d + 1) % 7).toString(), '');
+
+        config.PRESET_SCHEDULE = this.presetSchedule.reduce((str, preset) => {
+          const commands = preset.commands.trim();
+          if(commands === '') return str;
+          return str + (preset.time ? `${preset.time} ` : '') + commands + ';';
+        }, '');
+        return config;
+      },
+      // the timeline and warnings of the schedules on this page (not saved yet)
+      async PreviewSchedule() {
+        if(!this.scheduleLoaded) return [];
+        const res = await axios.post('./cgi-bin/schedule.cgi', Object.assign({}, this.config, this.ScheduleConfig())).catch(err => {
+          // eslint-disable-next-line no-console
+          console.log('axios.post ./cgi-bin/schedule.cgi', err);
+          return '';
+        });
+        this.scheduleList = (res?.data ?? '').split('\n');
+        if(this.scheduleList[this.scheduleList.length - 1] === '') this.scheduleList.pop();
+        return this.scheduleList.filter(line => line.indexOf('WARN:') === 0);
       },
       AddCruise() {
         this.cruiseList.push({
@@ -1300,35 +1393,17 @@
           this.config.DIGEST='';
         }
 
-        for(let schedule of ['periodicRec', 'alarmRec']) {
-          const confKey = schedule.toUpperCase() + '_SCHEDULE_LIST';
-          const innerKey = schedule + 'Schedule';
-          let str = '';
-          for(const i in this[innerKey]) {
-            const timeTable = this[innerKey][i];
-            str += `[index_${(i - 0 + 1).toString().padStart(2, '0')}];`;
-            const val = timeTable.dayOfWeekSelect.reduce((v, d) => v | (2 << d), 0);
-            str += `Rule=${val};`;
-            const stime = parseInt((timeTable.startTime ?? '0').slice(0, 2)) * 60 + parseInt((timeTable.startTime ?? '0').slice(-2));
-            const etime = parseInt((timeTable.endTime ?? '0').slice(0, 2)) * 60 + parseInt((timeTable.endTime ?? '0').slice(-2)) + 1;
-            str += `ContinueTime=${etime - stime};`;
-            str += `StartTime=${stime};`;
-            str += `Status=1;`;
-            str += `DelFlags=1;`;
-          }
-          this.$set(this.config, confKey, str);
+        const schedules = this.ScheduleConfig();
+        // ask before saving changed schedules that conflict (e.g. a preset while the camera reboots)
+        if(Object.keys(schedules).some(key => schedules[key] !== this.oldConfig[key])) {
+          const warnings = await this.PreviewSchedule();
+          if(warnings.length && !window.confirm(this.$t('scheduleSettings.confirm', { warnings: warnings.join('\n') }))) return;
         }
+        for(const key in schedules) this.$set(this.config, key, schedules[key]);
 
         if(this.config.PERIODICREC_SDCARD !== 'on' && this.config.ALARMREC_SDCARD !== 'on' && this.config.TIMELAPSE_SDCARD !== 'on') this.config.STORAGE_SDCARD_PUBLISH = 'off';
 
         this.config.LOCALE = this.$i18n.locale;
-        this.config.TIMELAPSE_SCHEDULE = this.timelapseSchedule.reduce((str, schedule) => {
-          str += parseInt(schedule.startTime.slice(-2)) + ' ' +
-          parseInt(schedule.startTime.slice(0, 2)) + ' * * ' +
-          schedule.dayOfWeekSelect.sort((a, b) => a - b).reduce((v, d) => v + (v.length ? ':' : '') + ((d + 1) % 7).toString(), '') +
-          ' /scripts/timelapse.sh start ' + schedule.interval + ' ' + schedule.count + ';';
-          return str;
-        }, '');
 
         this.config.CRUISE_LIST = this.cruiseList.reduce((str, cruise) => {
           str += `move ${cruise.pan} ${cruise.tilt} ${cruise.speed};`;
@@ -1340,10 +1415,6 @@
           return str;
         }, '');
         this.ClearCruiseSelect();
-
-        this.config.REBOOT_SCHEDULE = parseInt(this.reboot.startTime.slice(-2)) + ' ' +
-          parseInt(this.reboot.startTime.slice(0, 2)) + ' * * ' +
-          this.reboot.dayOfWeekSelect.sort((a, b) => a - b).reduce((v, d) => v + (v.length ? ':' : '') + ((d + 1) % 7).toString(), '');
 
         if(this.config.RTSP_VIDEO0 === 'off') {
           this.config.HOMEKIT_ENABLE = 'off';
@@ -1513,6 +1584,16 @@
 </script>
 
 <style scoped>
+  .schedule-list {
+    font-family: Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .schedule-warn {
+    color: #F56C6C;
+  }
   .title {
     display: flex;
     justify-content: space-between;

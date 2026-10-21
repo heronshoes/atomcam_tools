@@ -494,6 +494,26 @@ reboot:
     tooltip: Erase the video contents from the SD-Card
     button: Erase
 
+scheduleSettings:
+  heading: Presets
+  tab: Schedule
+  preset:
+    title: Time and commands
+    tooltip: Run commands that switch the camera direction and settings at the set times
+    placeholder: move 305 105|property nightVision auto|meteor start 0
+  presetNote:
+    comment: |
+      Separate the commands with | (commands of /scripts/cmd such as move, night, video, property, jpeg, meteor).
+      meteor start waits until 3 minutes after boot.
+      When the camera boots, the preset in effect at that time runs again.
+  list:
+    title: Schedule List
+  refresh:
+    title: Show the settings on this page
+    tooltip: Lists the periodic reboot, timelapse, presets and recording schedules in time order and warns about conflicts. Changes not saved yet are included
+    button: Update
+  confirm: "The schedule has these warnings. Save anyway?\n\n{warnings}"
+
 schedule:
   allDay: AllDay
   startTime: start
