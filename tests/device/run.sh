@@ -16,6 +16,7 @@
 # Suites are the directories here. Each runs its [0-9]*.sh in name order, and hooks.sh of
 # every suite is sourced first.
 #   core/ : the atomcam_tools features
+#   fork/ : the features added in this fork (hooks.sh counts known issues as failures on a custom build)
 #
 # SSH logs in as root with public key auth (authorized_keys on the SD card). For a key with a
 # passphrase, add it to ssh-agent first. If SSH_AUTH_SOCK is unset, ~/.ssh/agent.sock is used.
