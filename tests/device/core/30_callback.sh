@@ -2,8 +2,10 @@
 # (set_icamera_config.sh). Read only.
 # libcallback の確認: 読み出し形式のコマンドの応答と、起動時に反映された設定（読み出しのみ）
 
-# cb_all : "command<TAB>response" for each read command, in one ssh session
-cb_all=$(remote 'for c in "audio" "audio vol" "video flip" "video fps" "video bitrate 0" \
+# cb_all : "command<TAB>response" for each read command, in one ssh session.
+# Only the forms without a value: e.g. "video fps 10" sets the frame rate.
+cb_all=$(remote 'for c in "audio" "audio vol" "video flip" "video fps" "video bitrate 0" "video bitrate 1" "video bitrate 3" \
+    "video aeitmax" "video aemin" "video again" "video dgain" "video expr" \
     "property nightVision" "property recordType" "move" "center" "timelapse" \
     "mp4write" "skipRecJpeg" "curl upload" "alarm" \
     "video cont" "video bri" "video sat" "video sharp" "video dpc" "video drc" "video hilight" "video aecomp"; do
@@ -26,7 +28,15 @@ cb_check "audio" "on|off"
 cb_check "audio vol" "-?$NUM"
 cb_check "video flip" "normal|flip|mirror|flip_mirror"
 cb_check "video fps" "$NUM isp:$NUM/$NUM enc:$NUM/$NUM"
-cb_check "video bitrate 0" "$NUM"
+cb_check "video bitrate 0" "(auto )?$NUM"
+cb_check "video bitrate 1" "(auto )?$NUM"
+# ch3 is the HEVC main stream, not on WyzeCamV3
+[ "$(ini_get PRODUCT_MODEL)" = WYZE_CAKP2JFUS ] || cb_check "video bitrate 3" "(auto )?$NUM"
+cb_check "video aeitmax" "$NUM"
+cb_check "video aemin" "$NUM $NUM $NUM $NUM"
+cb_check "video again" "$NUM"
+cb_check "video dgain" "$NUM"
+cb_check "video expr" "(auto|manual) $NUM $NUM $NUM $NUM"
 cb_check "property nightVision" "on|off|auto"
 cb_check "property recordType" "cont|motion"
 cb_check "center" "on|off"
@@ -40,6 +50,25 @@ if [ -n "$res" ] && [ "$res" != error ]; then
 else
   fail "libcallback: timelapse" "response: '$res'"
 fi
+
+# property : all the items as "name = value" and "ok" (the mobile app settings in iCamera_app)
+prop=$(remote '/scripts/cmd property' | tr -d '\0' | grep -vE '^ *(ok)? *$')
+bad=$(echo "$prop" | grep -vE '^[A-Za-z]+ += .+$')
+if [ -n "$prop" ] && [ -z "$bad" ] && echo "$prop" | grep -qE '^nightVision ' && echo "$prop" | grep -qE '^recordType '; then
+  pass "libcallback: property ($(echo "$prop" | wc -l) items)"
+else
+  fail "libcallback: property" "unexpected: $(echo "${bad:-$prop}" | head -3 | tr '\n' ';')"
+fi
+
+# jpeg 1 : a JPEG of the sub stream (get_jpeg.cgi gives the main one)
+j=$(remote '/scripts/cmd jpeg 1 -n' | od -An -v -tx1 | tr -d ' \n')
+j=${j%00}
+if [ "${j:0:4}" = ffd8 ] && [ "${j: -4}" = ffd9 ] && [ ${#j} -ge 10000 ]; then
+  pass "libcallback: jpeg 1 ($((${#j} / 2))bytes)"
+else
+  fail "libcallback: jpeg 1" "$((${#j} / 2))bytes, head ${j:0:4} tail ${j: -4}"
+fi
+
 if [ "$(ini_get PRODUCT_MODEL)" = ATOM_CAKP1JZJP ]; then # ATOM Cam Swing
   cb_check "move" "[0-9.]+ [0-9.]+ [01] [01] [01]"
 else
