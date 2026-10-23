@@ -14,3 +14,6 @@ ini_json() {
     { k = $1; sub(/^[^=]*=/, ""); gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf("%s\"%s\":\"%s\"", n++ ? "," : "{", k, $0); }
     END { print "}"; }'
 }
+
+busy_meteor() { remote '/scripts/cmd meteor' | tr -d '\0' | grep -q '^recording ' && echo "meteor is recording"; }
+BUSY_HOOKS="$BUSY_HOOKS busy_meteor"
