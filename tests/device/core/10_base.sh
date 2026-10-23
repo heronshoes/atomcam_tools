@@ -107,6 +107,14 @@ if remote 'touch /media/mmc/.smoke_test && rm /media/mmc/.smoke_test'; then
 else
   fail "sdcard: writable"
 fi
+# libcallback (mmc_mount.c) keeps iCamera_app from mounting the SD card again over the one mounted
+# at boot; a mount point mounted twice breaks the file system. "/" is rootfs and the squashfs.
+dup=$(remote 'cat /proc/mounts' | awk '$2 != "/" { print $2 }' | sort | uniq -d)
+if [ -z "$dup" ]; then
+  pass "sdcard: not mounted twice"
+else
+  fail "sdcard: not mounted twice" "mounted twice: $(echo $dup)"
+fi
 
 swap=$(remote 'free' | awk '/^Swap:/ { print $2 }')
 if [ -n "$swap" ] && [ "$swap" -gt 0 ]; then
