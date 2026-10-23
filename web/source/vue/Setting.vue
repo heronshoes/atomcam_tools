@@ -1370,13 +1370,14 @@
            (this.config.REBOOT_SCHEDULE !== this.oldConfig.REBOOT_SCHEDULE)) {
           execCmds.push('setCron');
         }
-        if((this.config.STORAGE_SDCARD !== this.oldConfig.STORAGE_SDCARD) ||
+        if((this.config.PERIODICREC_SDCARD !== this.oldConfig.PERIODICREC_SDCARD) ||
+           (this.config.ALARMREC_SDCARD !== this.oldConfig.ALARMREC_SDCARD) ||
            (this.config.STORAGE_SDCARD_DIRECT_WRITE !== this.oldConfig.STORAGE_SDCARD_DIRECT_WRITE)) {
           let periodic = 'ram';
           let alarm = 'ram';
           if(this.config.STORAGE_SDCARD_DIRECT_WRITE === 'on') {
-            if((this.config.STORAGE_SDCARD === 'on') || (this.config.STORAGE_SDCARD === 'record')) periodic = 'sd';
-            if((this.config.STORAGE_SDCARD === 'on') || (this.config.STORAGE_SDCARD === 'alarm')) alarm = 'sd';
+            if(this.config.PERIODICREC_SDCARD === 'on') periodic = 'sd';
+            if(this.config.ALARMREC_SDCARD === 'on') alarm = 'sd';
           }
           execCmds.push(`mp4write ${periodic} ${alarm}`);
         }
