@@ -7,3 +7,10 @@
 case "$(http /cgi-bin/hack_ini.cgi | sed -ne 's/^ATOMHACKVER=//p')" in
   *.custom_*) STRICT=1 ;;
 esac
+
+# ini_json : KEY=VALUE lines on stdin as the JSON the web UI sends to hack_ini.cgi and schedule.cgi
+ini_json() {
+  awk -F "=" '
+    { k = $1; sub(/^[^=]*=/, ""); gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf("%s\"%s\":\"%s\"", n++ ? "," : "{", k, $0); }
+    END { print "}"; }'
+}
