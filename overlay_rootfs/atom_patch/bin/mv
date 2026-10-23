@@ -80,7 +80,9 @@ else
 fi
 
 if [ "$FMT" != "" ]; then
-  TMPFILE="/tmp/mv_`cat /proc/sys/kernel/random/uuid`"
+  # keep the file on the same filesystem: with STORAGE_SDCARD_DIRECT_WRITE it is on the SD card
+  # (/media/mmc/tmp), and moving it to /tmp would copy it through the RAM disk
+  TMPFILE="${1%/*}/mv_`cat /proc/sys/kernel/random/uuid`"
   /bin/busybox mv $1 $TMPFILE
   (
     if [ "$PERIODICREC_CIFS" = "on" ] && /tmp/system/bin/mount_cifs.sh ; then
