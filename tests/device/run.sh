@@ -4,7 +4,7 @@
 # 実機の ATOM Cam に対するテスト
 #
 # usage: tests/device/run.sh [-d] [-m] [-R] [-k] [-s suite] [host]
-#   host : default $ATOMCAM_HOST or atomcam.local
+#   host : default $ATOMCAM_HOST or atomcam-s1.local
 #   -d   : also run disruptive checks (they change the camera state and restore it)
 #   -m   : with -d, also move the motor. The pointing may shift by the backlash
 #   -R   : also reboot the camera and check it again after the reboot
@@ -18,7 +18,7 @@
 #   core/ : the atomcam_tools features
 #
 # SSH logs in as root with public key auth (authorized_keys on the SD card). For a key with a
-# passphrase, add it to ssh-agent first.
+# passphrase, add it to ssh-agent first. If SSH_AUTH_SOCK is unset, ~/.ssh/agent.sock is used.
 # Exit status: 0 if no check failed, 1 otherwise.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
@@ -46,8 +46,9 @@ shift $((OPTIND - 1))
 # core first, then the other suites in name order
 [ -z "$SUITES" ] && SUITES="core $(cd "$DIR" && ls -d */ | tr -d / | grep -vx core)"
 
-HOST=${1:-${ATOMCAM_HOST:-atomcam.local}}
+HOST=${1:-${ATOMCAM_HOST:-atomcam-s1.local}}
 ZOMBIE_WAIT=${ZOMBIE_WAIT:-10}
+[ -z "$SSH_AUTH_SOCK" ] && [ -S ~/.ssh/agent.sock ] && export SSH_AUTH_SOCK=~/.ssh/agent.sock
 SSH="ssh -o BatchMode=yes -o ConnectTimeout=5 -o PubkeyAcceptedKeyTypes=ssh-rsa root@$HOST"
 
 for h in "$DIR"/*/hooks.sh; do
