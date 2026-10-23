@@ -106,6 +106,41 @@ else
   fi
 fi
 
+# --- RTSP hooks: stream the sub video and its audio from a temporary v4l2rtspserver ---
+# When RTSP is off, nothing reads the frames the video and audio hooks pass to v4l2loopback and
+# the ALSA loopback. Start a server on another port the same way as rtspserver.sh, for the sub
+# video only, and read a few seconds with ffprobe. v4l2loopback makes each buffer of a compressed
+# format width x height x 4 bytes, two per channel (16.6 MB of kernel memory for 1080p): video0 and
+# video2 together made a Swing swap heavily, and all three channels rebooted it.
+rtsp_port=18554
+if [ -n "$reason" ]; then
+  skip "disruptive: RTSP hooks (video1 and audio1)" "$reason"
+elif echo "$INI" | grep -qE '^RTSP_VIDEO[0-2]=on'; then
+  skip "disruptive: RTSP hooks (video1 and audio1)" "RTSP is on (checked by stream: RTSP)"
+elif ! command -v ffprobe > /dev/null; then
+  skip "disruptive: RTSP hooks (video1 and audio1)" "ffprobe is not installed"
+else
+  st=$(remote '/scripts/cmd video 1; /scripts/cmd audio 1; pidof v4l2rtspserver' | tr -d '\0' | grep -v '^$')
+  v1=$(echo "$st" | sed -n 1p) a1=$(echo "$st" | sed -n 2p) pid=$(echo "$st" | sed -n 3p)
+  if [ -n "$pid" ] || ! echo "$v1 $a1" | grep -qxE '(on|off) (on|off)'; then
+    fail "disruptive: RTSP hooks (video1 and audio1)" "video 1: '$v1', audio 1: '$a1', v4l2rtspserver: '$pid'"
+  else
+    remote "/scripts/cmd video 1 on; /scripts/cmd audio 1 on
+      (/usr/bin/v4l2rtspserver -P $rtsp_port -C 1 -a S16_LE /dev/video1,hw:2,0@S16_BE > /dev/null 2>&1 &)" > /dev/null
+    sleep 3
+    res=$(timeout 20 ffprobe -v error -rtsp_transport tcp -read_intervals %+3 -count_packets \
+      -show_entries stream=codec_type,codec_name,width,height,sample_rate,nb_read_packets -of csv=p=0 \
+      "rtsp://$HOST:$rtsp_port/video1_unicast" 2>&1 | tr '\n' ' ')
+    remote "killall v4l2rtspserver; sleep 1; /scripts/cmd video 1 $v1; /scripts/cmd audio 1 $a1" > /dev/null
+    # video: codec,type,width,height,packets  audio: codec,type,rate,packets
+    if echo "$res" | grep -qE '(h264|hevc),video,[0-9]+,[0-9]+,[1-9]' && echo "$res" | grep -qE 'pcm_s16be,audio,[0-9]+,[1-9]'; then
+      pass "disruptive: RTSP hooks (video1 and audio1) ($res)"
+    else
+      fail "disruptive: RTSP hooks (video1 and audio1)" "ffprobe: ${res:-no response}. restore: killall v4l2rtspserver; /scripts/cmd video 1 $v1; /scripts/cmd audio 1 $a1"
+    fi
+  fi
+fi
+
 # --- motor (-m): move through the whole range and back to the original position ---
 # Checks that move answers and reports the commanded position. 0, 355 and 180 are beyond the
 # mechanical stops, so the step count is synced at the ends on the way. The position is the step
