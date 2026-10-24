@@ -1,7 +1,7 @@
 # Common functions for the device tests. Sourced by run.sh.
 # 実機テストの共通関数（run.sh から読み込む）
 #
-# Globals set by run.sh: DIR, HOST, SSH, DISRUPTIVE, MOTOR, REBOOT, STRICT, ZOMBIE_WAIT
+# Globals set by run.sh: DIR, HOST, SSH, DISRUPTIVE, MOTOR, LOAD, REBOOT, STRICT, ZOMBIE_WAIT
 # Globals set by the tests: INI (hack.ini read through hack_ini.cgi)
 
 PASS=0

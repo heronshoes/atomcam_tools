@@ -3,10 +3,12 @@
 # Tests for a running ATOM Cam with atomcam_tools.
 # 実機の ATOM Cam に対するテスト
 #
-# usage: tests/device/run.sh [-d] [-m] [-R] [-k] [-s suite] [host]
+# usage: tests/device/run.sh [-d] [-m] [-L] [-R] [-k] [-s suite] [host]
 #   host : default $ATOMCAM_HOST or atomcam.local
 #   -d   : also run disruptive checks (they change the camera state and restore it)
 #   -m   : with -d, also move the motor. The pointing may shift by the backlash
+#   -L   : also stream over RTSP and WebRTC with a timelapse and record the memory and load
+#          (about 3 minutes; needs ffprobe and python3 aiortc)
 #   -R   : also reboot the camera and check it again after the reboot
 #   -k   : count a known issue as a failure (for a build that should have the fix)
 #   -s   : test suite to run (default all)
@@ -24,17 +26,19 @@
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/lib.sh"
 
-usage() { echo "usage: $0 [-d] [-m] [-R] [-k] [-s suite] [host]" >&2; exit 2; }
+usage() { echo "usage: $0 [-d] [-m] [-L] [-R] [-k] [-s suite] [host]" >&2; exit 2; }
 
 DISRUPTIVE=0
 MOTOR=0
+LOAD=0
 REBOOT=0
 STRICT=0
 SUITES=
-while getopts dmRks: opt; do
+while getopts dmLRks: opt; do
   case $opt in
     d) DISRUPTIVE=1 ;;
     m) MOTOR=1 ;;
+    L) LOAD=1 ;;
     R) REBOOT=1 ;;
     k) STRICT=1 ;;
     s) [ -d "$DIR/$OPTARG" ] || usage
