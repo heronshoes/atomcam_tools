@@ -9,6 +9,8 @@
 #    move <pan> <tilt> [<speed>]  speed defaults to 5 (9 loses steps). The camera first returns to
 #                                 0/0 to resync the position after manual moves, then approaches
 #                                 the target from below so the backlash is always on the same side.
+#    night ... / property nightVision ...  waits 3 seconds after it. The day/night switch happens
+#                          about 1 second later and resets video aeitmax to the mode's default.
 #
 # usage: preset.sh run <n>    apply the n-th entry of PRESET_SCHEDULE (from 1)
 #        preset.sh current    apply the entry in effect now (at boot)
@@ -71,6 +73,10 @@ run_cmd() {
     set -- move $2 $3 $speed 0
   fi
   echo "$* : $(/scripts/cmd $*)"
+  # the day/night switch comes about 1 second later and resets aeitmax; let it finish before the next command
+  if [ "$1" = "night" ] || [ "$1" = "property" -a "$2" = "nightVision" -a "$3" != "" ] ; then
+    sleep 3
+  fi
 }
 
 apply() {
