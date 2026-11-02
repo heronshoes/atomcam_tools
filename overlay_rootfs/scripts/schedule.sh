@@ -13,6 +13,7 @@
 #   - a reboot stops a timelapse, or comes before its file is finished
 #   - timelapses overlap, or presets run at the same minute
 #   - a PRESET_SCHEDULE entry is ignored or has a command that crashes iCamera_app
+#   - a PRESET_ALIAS entry is ignored, defined twice or uses itself
 #   - the installed crontab differs from hack.ini (only for /tmp/hack.ini)
 #
 # HACK_INI=<file> schedule.sh shows other settings, e.g. the Web UI before saving (schedule.cgi)
@@ -103,6 +104,34 @@ awk -v cronok=$CRON_OK -v bootmin=$BOOT_MIN -v meteorwait=$METEOR_WAIT_MIN -v tl
     }
     return idx ? idx : lastIdx;
   }
+  # as preset.sh: "<cmd>|<cmd>..." with the aliases replaced by their commands (an alias used alone as a command),
+  # until none is left. An alias used inside itself is not replaced again and becomes "!<name>".
+  function expand(c,   n, m, a, ch, b, bch, x, i, j, k, w, again, r) {
+    n = split(c, a, "|");
+    for(i = 1; i <= n; i++) ch[i] = ",";
+    again = 1;
+    while(again) {
+      again = 0;
+      m = 0;
+      for(i = 1; i <= n; i++) {
+        w = a[i];
+        gsub(/^[ \t]+|[ \t]+$/, "", w);
+        if(w == "") continue;
+        if(!(w in ALIAS)) { b[++m] = w; bch[m] = ch[i]; continue; }
+        # ch: the aliases this command came from
+        if(index(ch[i], "," w ",")) { b[++m] = "!" w; bch[m] = ch[i]; continue; }
+        k = split(ALIAS[w], x, "|");
+        for(j = 1; j <= k; j++) { b[++m] = x[j]; bch[m] = ch[i] w ","; }
+        again = 1;
+      }
+      for(i = 1; i <= m; i++) { a[i] = b[i]; ch[i] = bch[i]; }
+      n = m;
+    }
+    # (busybox awk takes "r (...)" for a function call)
+    r = a[1];
+    for(i = 2; i <= n; i++) r = r "|" a[i];
+    return r;
+  }
   function recsched(name, list, on,   n, e, i, f, idx, status, rule, start, len) {
     if(!on) return;
     if(SCHED[name] != "on") { row(0, "1111111", name, "recording all day"); return; }
@@ -161,6 +190,23 @@ awk -v cronok=$CRON_OK -v bootmin=$BOOT_MIN -v meteorwait=$METEOR_WAIT_MIN -v tl
     SCHED["periodic"] = INI["PERIODICREC_SCHEDULE"];
     SCHED["alarm"] = INI["ALARMREC_SCHEDHULE"];
 
+    # PRESET_ALIAS entries: <name> <cmd>|<cmd>...;
+    n = split(INI["PRESET_ALIAS"], e, ";");
+    for(i = 1; i <= n; i++) {
+      entry = e[i];
+      gsub(/^[ \t]+|[ \t]+$/, "", entry);
+      if(entry == "") continue;
+      if(!match(entry, /^[A-Za-z][A-Za-z0-9_-]*[ \t]/)) {
+        warn("alias is ignored (not \"<name> <cmd>|...\", a name starting with a letter): " entry);
+        continue;
+      }
+      name = substr(entry, 1, RLENGTH - 1);
+      if(name in ALIAS) warn("alias " name " is defined again: the last one is used");
+      ALIAS[name] = substr(entry, RLENGTH + 1);
+    }
+    for(name in ALIAS)
+      if(("|" expand(name) "|") ~ ("[|]!" name "[|]")) warn("alias " name " uses itself: preset.sh skips it there");
+
     # PRESET_SCHEDULE entries, numbered as set_crontab.sh and preset.sh do
     n = split(INI["PRESET_SCHEDULE"], e, ";");
     for(i = 1; i <= n; i++) {
@@ -172,7 +218,8 @@ awk -v cronok=$CRON_OK -v bootmin=$BOOT_MIN -v meteorwait=$METEOR_WAIT_MIN -v tl
         continue;
       }
       PRESET[i] = substr(entry, RLENGTH + 1);
-      c = PRESET[i];
+      # the commands that run, for the checks
+      c = PRESETCMD[i] = expand(PRESET[i]);
       if(match(c, /video +sharp +[0-9]+/)) {
         split(substr(c, RSTART, RLENGTH), v, " ");
         if(v[3] > 128) warn("preset " i " sets video sharp " v[3] ": over 128 crashes iCamera_app (preset.sh skips it)");
@@ -188,7 +235,7 @@ awk -v cronok=$CRON_OK -v bootmin=$BOOT_MIN -v meteorwait=$METEOR_WAIT_MIN -v tl
       cur = currentpreset(rmin[i] + 1);
       if(cur) {
         row(rmin[i] + 1, rday[i], "boot", "preset " cur " applied again: " PRESET[cur]);
-        if(PRESET[cur] ~ /meteor +start/) row(rmin[i] + meteorwait, rday[i], "boot", "meteor start of preset " cur " (waits " meteorwait " min after boot)");
+        if(PRESETCMD[cur] ~ /meteor +start/) row(rmin[i] + meteorwait, rday[i], "boot", "meteor start of preset " cur " (waits " meteorwait " min after boot)");
       }
     }
 
