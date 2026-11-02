@@ -6,8 +6,9 @@
     </ElCol>
     <ElCol :span="15 - titleOffset">
       <div class="well preset">
-        <ElTimePicker class="time-picker" v-model="innerValue.time" :placeholder="$t('schedule.time')" value-format="HH:mm" format="HH:mm" @change="Changed" />
-        <ElInput class="preset-commands" v-model="innerValue.commands" :placeholder="$t('scheduleSettings.preset.placeholder')" @input="Changed" />
+        <ElInput v-if="alias" class="preset-key" v-model="innerValue.name" :placeholder="$t('scheduleSettings.alias.name')" @input="Changed" />
+        <ElTimePicker v-else class="preset-key" v-model="innerValue.time" :placeholder="$t('schedule.time')" value-format="HH:mm" format="HH:mm" @change="Changed" />
+        <ElInput class="preset-commands" v-model="innerValue.commands" :placeholder="$t(alias ? 'scheduleSettings.alias.placeholder' : 'scheduleSettings.preset.placeholder')" @input="Changed" />
         <ElButton class="preset-button" type="text" size="small" circle icon="el-icon-minus" @click="$emit('remove', $event)" />
         <ElButton class="preset-button" type="text" size="small" circle icon="el-icon-plus" @click="$emit('add', $event)" />
       </div>
@@ -21,6 +22,7 @@
   import 'element-ui/lib/theme-chalk/input.css';
 
   // one entry of PRESET_SCHEDULE: { time: 'HH:MM', commands: '<cmd>|<cmd>...' }
+  // or with alias, of PRESET_ALIAS: { name: '<name>', commands: '<cmd>|<cmd>...' }
   export default {
     components: {
       ElTimePicker: TimePicker,
@@ -34,6 +36,10 @@
       i18n: {
         type: String,
         default: '',
+      },
+      alias: {
+        type: Boolean,
+        default: false,
       },
       value: {
         type: Object,
@@ -65,7 +71,7 @@
     width: 95%;
     padding: 5px;
   }
-  .time-picker {
+  .preset-key {
     width: 110px;
     flex-shrink: 0;
   }
