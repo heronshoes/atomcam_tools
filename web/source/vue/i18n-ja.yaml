@@ -526,6 +526,15 @@ scheduleSettings:
       コマンドは | で区切って並べます（move, night, video, property, jpeg, meteor など /scripts/cmd のコマンド）。
       meteor start は起動から3分たつまで待ってから始まります。
       カメラが起動したときは、その時刻に有効なプリセットをもう一度実行します。
+  alias:
+    title: コマンドの別名
+    tooltip: よく使うコマンドの並びに名前を付けます。プリセットにその名前だけを書くと、登録したコマンドを順に実行します
+    name: 名前
+    placeholder: move 225 140|property nightVision on|video expr auto 0 3500 3500
+  aliasNote:
+    comment: |
+      名前は英字で始め、英字・数字・_・- を使えます。別名の中で別の別名も使えます。
+      コマンドと同じ名前（night など）も付けられます。night だけなら別名、night on ならコマンドを実行します。
   list:
     title: スケジュール一覧
   refresh:
