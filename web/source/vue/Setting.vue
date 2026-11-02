@@ -338,6 +338,9 @@
           <SettingPreset v-for="(preset, idx) of presetSchedule" :key="'preset'+idx" :i18n="idx ? '' : 'scheduleSettings.preset'" v-model="presetSchedule[idx]" @add="AddPreset(idx + 1)" @remove="DeletePreset(idx)" />
           <SettingButton v-if="!presetSchedule.length" i18n="scheduleSettings.preset" button="+" @click="AddPreset(0)" />
           <SettingComment i18n="scheduleSettings.presetNote" />
+          <SettingPreset v-for="(alias, idx) of presetAlias" :key="'alias'+idx" alias :i18n="idx ? '' : 'scheduleSettings.alias'" v-model="presetAlias[idx]" @add="AddAlias(idx + 1)" @remove="DeleteAlias(idx)" />
+          <SettingButton v-if="!presetAlias.length" i18n="scheduleSettings.alias" button="+" @click="AddAlias(0)" />
+          <SettingComment i18n="scheduleSettings.aliasNote" />
           <h3 v-t="'scheduleSettings.list.title'" />
           <SettingButton i18n="scheduleSettings.refresh" @click="PreviewSchedule" />
           <ElRow>
@@ -546,6 +549,7 @@
           CRUISE: 'off',
           CRUISE_LIST: '',
           PRESET_SCHEDULE: '', // -> /var/spool/crontabs/root (/scripts/preset.sh)
+          PRESET_ALIAS: '', // /scripts/preset.sh
           MINIMIZE_ALARM_CYCLE: 'off',
           AWS_VIDEO_DISABLE: 'off',
           CUSTOM_ZIP: 'off',
@@ -625,6 +629,7 @@
         cruiseList: [],
         cruiseSelect: -1,
         presetSchedule: [],
+        presetAlias: [],
         scheduleList: [],
         scheduleLoaded: false,
         reboot: {
@@ -739,6 +744,14 @@
         const m = entry.match(/^(\d?\d):([0-5]\d) +(.*)$/);
         if(!m) return [{ time: '', commands: entry }];
         return [{ time: `${m[1].padStart(2, '0')}:${m[2]}`, commands: m[3].trim() }];
+      });
+      // PRESET_ALIAS=<name> <cmd>|<cmd>...;<name> ...; (an entry without the name is kept as it is)
+      this.presetAlias = (this.config.PRESET_ALIAS || '').split(';').flatMap(entry => {
+        entry = entry.trim();
+        if(entry === '') return [];
+        const m = entry.match(/^([A-Za-z][A-Za-z0-9_-]*)\s+(.*)$/);
+        if(!m) return [{ name: '', commands: entry }];
+        return [{ name: m[1], commands: m[2].trim() }];
       });
       // eslint-disable-next-line no-console
       console.log('config', this.config);
@@ -1249,6 +1262,12 @@
       DeletePreset(i) {
         this.presetSchedule.splice(i, 1);
       },
+      AddAlias(i) {
+        this.presetAlias.splice(i, 0, { name: '', commands: '' });
+      },
+      DeleteAlias(i) {
+        this.presetAlias.splice(i, 1);
+      },
       // the hack.ini values of the schedules set on this page
       ScheduleConfig() {
         const config = {};
@@ -1287,6 +1306,12 @@
           const commands = preset.commands.trim();
           if(commands === '') return str;
           return str + (preset.time ? `${preset.time} ` : '') + commands + ';';
+        }, '');
+        config.PRESET_ALIAS = this.presetAlias.reduce((str, alias) => {
+          const name = alias.name.trim();
+          const commands = alias.commands.trim();
+          if(commands === '') return str;
+          return str + (name ? `${name} ` : '') + commands + ';';
         }, '');
         return config;
       },

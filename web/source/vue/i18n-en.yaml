@@ -528,6 +528,15 @@ scheduleSettings:
       Separate the commands with | (commands of /scripts/cmd such as move, night, video, property, jpeg, meteor).
       meteor start waits until 3 minutes after boot.
       When the camera boots, the preset in effect at that time runs again.
+  alias:
+    title: Command aliases
+    tooltip: Give a name to a list of commands. A preset that has the name alone as a command runs those commands in order
+    name: Name
+    placeholder: move 225 140|property nightVision on|video expr auto 0 3500 3500
+  aliasNote:
+    comment: |
+      A name starts with a letter and has letters, digits, _ or -. An alias may use other aliases.
+      It may have the name of a command (e.g. night): night alone runs the alias, night on runs the command.
   list:
     title: Schedule List
   refresh:
