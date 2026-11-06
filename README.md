@@ -19,6 +19,7 @@
 - [Fix] Web 画面で設定を保存すると、hack.ini の CONFIG_VER が 1.0.1 に戻る問題の修正.
 - [Feature] 時刻合わせを確実に行うため、ネットワークの起動を待ち、ntpd が自動で再起動する機能の追加.
 - [Feature] 機能を拡張した際の動作確認を容易にするため、実機用テストの機能を追加.
+
 （以上は4.6.0で本家に反映されました。ありがとうございます!）
 
 - [Fix] (Swing)再起動やモーターの反転の際に位置がずれる問題の修正.
@@ -36,6 +37,19 @@
 
 オリジナルにバグが見つかった場合は、随時PRを送っていきます。
 
+## 機能拡張されたwebインターフェース
+カメラ画像：　タイムスタンプを小さくでき、星空の撮影で感度をMAX (3500ライン）まで上げることができます。
+<img width="1721" height="1108" alt="カメラ画像" src="https://github.com/user-attachments/assets/95fb947f-5909-4df5-8566-908b2b70a2fa" />
+
+カメラ設定：　露出をMaxにできます。
+<img width="1716" height="1108" alt="カメラ設定" src="https://github.com/user-attachments/assets/4dc3da5d-acb1-4e58-bdc7-263c89d445e0" />
+
+スケジュール機能：　時間とコマンドを指定して、動作をスケジューリングできます。タイムラプスや録画、再起動のスケジュールも一括して表示させることができ、設定変更時に干渉があると警告を表示します。
+<img width="1718" height="1108" alt="スケジュール" src="https://github.com/user-attachments/assets/870eb26e-05e2-4f22-9591-821a74103dee" />
+
+システム設定画面を拡張して、タイムスタンプの大きさと jpeg 画像のクオリティを変更できるようにしました。
+<img width="1712" height="1108" alt="システム設定" src="https://github.com/user-attachments/assets/a060be19-6f94-4d0a-b86f-58706dcd1a49" />
+
 ## 動作確認バージョン
 
  このforkは以下のATOMCamのVersionで動作確認しています。更新した場合機能が使えなくなることもあるのでご注意ください。
@@ -44,9 +58,9 @@
 
 ## ファームウェアの更新について
 
-以下は自分でビルドしたatomcam_tools.zipに、SD-Cardを抜かずに入れ替える手順です。
+以下は自分でビルド、またはこのリポジトリから取得したatomcam_tools.zipに、SD-Cardを抜かずに入れ替える手順です。
 
-**Web画面のatomcam_toolsのupdate機能はGitHubのLatestイメージをダウンロードして入れ替えます。自分でビルドしたイメージを使っている場合は、その変更が失われるので使わないでください。**
+**Web画面のatomcam_toolsのupdate機能は本家GitHubのLatestイメージをダウンロードして入れ替えます。自分でビルドしたイメージを使っている場合は、その変更が失われるので使わないでください。**
 
 ### 1. ビルド
 
