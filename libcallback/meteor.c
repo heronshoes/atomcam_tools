@@ -81,6 +81,7 @@ extern char CommandResBuf[];
 #define QUEUE_ENTRIES     64
 #define LATEST_SIZE       (1024 * 1024)
 #define TIMESCALE         90000
+#define SEGMENT_MAX_US    (65LL * 1000000) // longest file by the encoder clock
 #define MP4_TIME_OFFSET   2082844800U // 1904/01/01 - 1970/01/01
 
 static pthread_mutex_t QueueMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -702,13 +703,19 @@ static void *Writer(void *arg) {
     pthread_mutex_unlock(&QueueMutex);
 
     time_t t = (frame->timestamp + TimeOffset) / 1000000;
-    if((Segment.fd >= 0) && (t / 60 != Segment.minute)) {
+    // The system clock can step back (ntpd) while the encoder clock does not.
+    // Move to the next file only when the minute advances, or when the file has grown
+    // beyond a minute by the encoder clock; going back to an earlier minute would close
+    // the file on every frame.
+    if((Segment.fd >= 0) &&
+       ((t / 60 > Segment.minute) || (frame->timestamp - Segment.baseTimestamp >= SEGMENT_MAX_US))) {
       int minute = Segment.minute;
       CloseSegment();
       UpdateTimeOffset();
       t = (frame->timestamp + TimeOffset) / 1000000;
-      // the new offset can move t back into the closed minute; keep it in the next one
-      if(t / 60 <= minute) t = (time_t)(minute + 1) * 60;
+      // the new offset can move t back into the closed minute; keep it in the next one,
+      // unless the clock went back further (then the time is used as is)
+      if((t / 60 <= minute) && (minute - t / 60 < 2)) t = (time_t)(minute + 1) * 60;
     }
     if(Segment.fd < 0) OpenSegment(frame, t);
     if((Segment.fd >= 0) && (WriteFrame(frame) < 0)) {
