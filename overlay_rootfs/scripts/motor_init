@@ -23,9 +23,9 @@ if [ "$1" = "reboot" ] ; then
       v = $2;
     }
     END {
-      if(h == 1) x = 350 - x;
+      if(h == 1) x = 355 - x;
       if(v == 1) y = 180 - y;
-      printf("%d %d", x, y);
+      printf("%.2f %.2f", x, y);
     }
   ' /atom/configs/.user_config`
   /scripts/cmd move 0 0 7 0
