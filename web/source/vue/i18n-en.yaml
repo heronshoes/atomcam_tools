@@ -530,7 +530,7 @@ scheduleSettings:
     comment: |
       Separate the commands with | (commands of /scripts/cmd such as move, night, video, property, jpeg, meteor).
       meteor start waits until 3 minutes after boot.
-      When the camera boots, the preset in effect at that time runs again.
+      When the camera boots, the presets since the last scheduled reboot run again in time order (all of them with no reboot in the last 24 hours; the one in effect when none ran since the reboot). From the earlier ones, move and meteor run only when no later preset has one.
   alias:
     title: Command aliases
     tooltip: Give a name to a list of commands. A preset that has the name alone as a command runs those commands in order

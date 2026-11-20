@@ -19,38 +19,103 @@
 #    "night on" runs the command.
 #    ex. PRESET_SCHEDULE=18:00 night;05:00 day;
 #
+# At boot (preset.sh current) the presets since the last scheduled reboot (REBOOT_SCHEDULE) run
+# again in time order, so that a preset which relies on an earlier one (e.g. 18:00 night settings,
+# then 21:30 meteor start) gets the same camera state after an unexpected reboot. With no scheduled
+# reboot in the last 24 hours, all the presets run, oldest first. With no preset since that reboot
+# (the boot after the scheduled reboot itself), the preset in effect now runs.
+# From the earlier presets, move and meteor run only when no later preset has one (the last one
+# decides the state), and commands that act once (jpeg, aplay, relmove, contmove, contstop) do not run.
+#
 # usage: preset.sh run <n>          apply the n-th entry of PRESET_SCHEDULE (from 1)
-#        preset.sh current          apply the entry in effect now (at boot)
+#        preset.sh current [-n]     at boot: run the presets again up to the one in effect now
+#                                   (-n prints the commands without running them)
 #        preset.sh exec <cmd>[|<cmd>...]  run the commands (and aliases) now, as a preset
 
 HACK_INI=${HACK_INI:-/tmp/hack.ini}
 # the preset applied last; an earlier preset still waiting stops when it is replaced
-PRESET_RUNNING=/tmp/preset_running
+PRESET_RUNNING=${PRESET_RUNNING:-/tmp/preset_running}
 PRESET_SCHEDULE=$(awk '/^PRESET_SCHEDULE *=/ { sub(/^[^=]*= */, ""); print; }' $HACK_INI)
 PRESET_ALIAS=$(awk '/^PRESET_ALIAS *=/ { sub(/^[^=]*= */, ""); print; }' $HACK_INI)
+REBOOT=$(awk -F "=" '/^REBOOT *=/ {print $2}' $HACK_INI)
+REBOOT_SCHEDULE=$(awk -F "=" '/^REBOOT_SCHEDULE *=/ {print $2}' $HACK_INI)
+DRYRUN=
 
-# print the index of the entry whose time is the latest at or before now (wraps to the previous day)
-current_index() {
-  echo "$PRESET_SCHEDULE" | awk '
+# print the indexes of the entries to run at boot in time order, the one in effect now last:
+# the entries since the last scheduled reboot, or all of the last 24 hours when there was none,
+# or the one in effect now when none ran since the reboot.
+# (the one in effect: the latest at or before now, wrapping to the previous day; of two at the same
+# time, the first one)
+day_order() {
+  set -- $(date +"%w %H %M")
+  echo "$PRESET_SCHEDULE" | awk -v wday=$1 -v hh=$2 -v mm=$3 -v reboot="$REBOOT" -v rsched="$REBOOT_SCHEDULE" '
+  # whether the cron day field d (e.g. 1:2:3 or *) has the weekday w (0 = Sunday, also 7)
+  function hasday(d, w) {
+    if(d == "*") return 1;
+    gsub(/,/, ":", d);
+    return index(":" d ":", ":" w ":") || ((w == 0) && index(":" d ":", ":7:"));
+  }
   BEGIN {
     RS = ";";
-    best = -1;
-    last = -1;
+    now = hh * 60 + mm;
+    # minutes since the last scheduled reboot, -1 when none in the last 24 hours
+    rage = -1;
+    if((reboot == "on") && (split(rsched, r, " ") >= 5) && (r[1] ~ /^[0-9]+$/) && (r[2] ~ /^[0-9]+$/)) {
+      rmin = r[2] * 60 + r[1];
+      if(rmin <= now) {
+        if(hasday(r[5], wday)) rage = now - rmin;
+      } else {
+        if(hasday(r[5], (wday + 6) % 7)) rage = now - rmin + 1440;
+      }
+    }
   }
   {
     i++;
     if(!match($0, /^ *[0-9]?[0-9]:[0-5][0-9] /)) next;
     split(substr($0, RSTART, RLENGTH), t, ":");
     if(t[1] > 23) next;
-    m = t[1] * 60 + t[2];
-    if((m <= now) && (m > best)) { best = m; idx = i; }
-    if(m > last) { last = m; lastIdx = i; }
+    n++;
+    idx[n] = i;
+    # minutes since the entry ran last
+    age[n] = (now - (t[1] * 60 + t[2]) + 1440) % 1440;
   }
   END {
-    if(idx) print idx;
-    else if(lastIdx) print lastIdx;
-  }
-  ' now=$(date +"%H %M" | awk '{print $1 * 60 + $2}')
+    # oldest first; at the same age the later entry first, so that the first one is in effect
+    for(j = 2; j <= n; j++)
+      for(k = j; (k > 1) && ((age[k - 1] < age[k]) || ((age[k - 1] == age[k]) && (idx[k - 1] < idx[k]))); k--) {
+        a = age[k]; age[k] = age[k - 1]; age[k - 1] = a;
+        a = idx[k]; idx[k] = idx[k - 1]; idx[k - 1] = a;
+      }
+    if(!n) exit;
+    first = 1;
+    if(rage >= 0) {
+      first = n;
+      for(j = 1; j <= n; j++) if(age[j] <= rage) { first = j; break; }
+    }
+    for(j = first; j <= n; j++) print idx[j];
+  }'
+}
+
+# replay_cmds <current index>: read "<index> <tab> <command>" lines in time order and print the ones
+# to run again at boot: all of the current preset; from the earlier ones, not the commands that act
+# once, and move / meteor only when no later preset has one
+replay_cmds() {
+  awk -F "\t" -v cur=$1 '
+  { idx[NR] = $1; cmd[NR] = $2; }
+  END {
+    once["jpeg"] = once["aplay"] = once["relmove"] = once["contmove"] = once["contstop"] = 1;
+    last["move"] = last["meteor"] = 1;
+    for(i = NR; i >= 1; i--) {
+      split(cmd[i], w, " ");
+      keep[i] = 1;
+      if(idx[i] != cur) {
+        if(w[1] in once) keep[i] = 0;
+        if((w[1] in last) && (w[1] in seen)) keep[i] = 0;
+      }
+      if(w[1] in last) seen[w[1]] = 1;
+    }
+    for(i = 1; i <= NR; i++) if(keep[i]) print idx[i] "\t" cmd[i];
+  }'
 }
 
 # print the commands of "<cmd>|<cmd>..." one per line, with the aliases replaced by their commands
@@ -102,7 +167,7 @@ expand() {
 }
 
 superseded() {
-  [ "$(cat $PRESET_RUNNING 2> /dev/null)" != "$$" ]
+  [ -z "$DRYRUN" ] && [ "$(cat $PRESET_RUNNING 2> /dev/null)" != "$$" ]
 }
 
 run_cmd() {
@@ -111,6 +176,10 @@ run_cmd() {
   [ "$1" = "" ] && return
   if [ "$1" = "video" -a "$2" = "sharp" ] && [ "$3" -gt 128 ] 2> /dev/null ; then
     echo "skip : $* : sharp over 128 crashes iCamera_app"
+    return
+  fi
+  if [ "$DRYRUN" ] ; then
+    echo "$* : (not run)"
     return
   fi
   if [ "$1" = "meteor" -a "$2" = "start" ] ; then
@@ -136,13 +205,13 @@ run_cmd() {
   fi
 }
 
-# run_cmds <log header> <cmd>[|<cmd>...]
+# run_cmds <log header> <commands, one per line as expand prints them>
 run_cmds() {
   echo `date +"%Y/%m/%d %H:%M:%S"` : $1
-  echo $$ > $PRESET_RUNNING
+  [ "$DRYRUN$REPLAYING" ] || echo $$ > $PRESET_RUNNING
   IFS="
 "
-  for cmd in $(expand "$2") ; do
+  for cmd in $2 ; do
     if superseded ; then
       echo `date +"%Y/%m/%d %H:%M:%S"` : skip : $cmd : a later preset has run
       continue
@@ -155,11 +224,39 @@ run_cmds() {
   done
 }
 
+# entry <n>: print the n-th entry of PRESET_SCHEDULE ("HH:MM <cmd>|...")
+entry() {
+  echo $(echo "$PRESET_SCHEDULE" | awk 'BEGIN { RS = ";"; } NR == n { print; exit; }' n=$1)
+}
+
 apply() {
-  entry=$(echo "$PRESET_SCHEDULE" | awk 'BEGIN { RS = ";"; } NR == n { print; exit; }' n=$1)
-  entry=$(echo $entry)
+  entry=$(entry $1)
   [ "$entry" = "" ] && echo "preset $1 : not found" && return 1
-  run_cmds "preset $1 : $entry" "${entry#* }"
+  run_cmds "preset $1 : $entry" "$(expand "${entry#* }")"
+}
+
+# replay: run the presets of the last 24 hours again in time order, up to the one in effect now
+replay() {
+  order=$(day_order)
+  [ "$order" = "" ] && return 0
+  cur=$(echo "$order" | tail -n 1)
+  TAB=`printf '\t'`
+  cmds=$(for i in $order ; do
+    entry=$(entry $i)
+    expand "${entry#* }" | sed "s/^/$i$TAB/"
+  done | replay_cmds $cur)
+  [ "$DRYRUN" ] || echo $$ > $PRESET_RUNNING
+  REPLAYING=1
+  for i in $order ; do
+    if superseded ; then
+      echo `date +"%Y/%m/%d %H:%M:%S"` : skip : preset $i : a later preset has run
+      continue
+    fi
+    entry=$(entry $i)
+    header="preset $i : $entry"
+    [ "$i" != "$cur" ] && header="$header (again at boot, before preset $cur)"
+    run_cmds "$header" "$(echo "$cmds" | awk -F "\t" -v i=$i '$1 == i { print $2 }')"
+  done
 }
 
 case "$1" in
@@ -167,10 +264,10 @@ case "$1" in
     apply $2
   ;;
   current)
-    index=$(current_index)
-    [ "$index" = "" ] && exit 0
+    [ "$2" = "-n" ] && DRYRUN=1
+    [ "$(day_order)" = "" ] && exit 0
     PRODUCT_MODEL=$(awk -F "=" '/^PRODUCT_MODEL *=/ {print $2}' /atom/configs/.product_config)
-    if [ "ATOM_CAKP1JZJP" = "$PRODUCT_MODEL" ] ; then
+    if [ "ATOM_CAKP1JZJP" = "$PRODUCT_MODEL" -a -z "$DRYRUN" ] ; then
       # wait for motor_init to finish homing, or it moves the camera after us
       count=0
       while [ ! -f /tmp/motor_initialize_done -a $count -lt 120 ] ; do
@@ -178,13 +275,13 @@ case "$1" in
         let count++
       done
     fi
-    apply $index
+    replay
   ;;
   exec)
     shift
-    run_cmds "exec : $*" "$*"
+    run_cmds "exec : $*" "$(expand "$*")"
   ;;
   *)
-    echo "Usage: $0 {run <n>|current|exec <cmd>[|<cmd>...]}"
+    echo "Usage: $0 {run <n>|current [-n]|exec <cmd>[|<cmd>...]}"
     exit 1
 esac
