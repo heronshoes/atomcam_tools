@@ -4,6 +4,8 @@ case "$1" in
   start)
     echo $(date +"%Y/%m/%d %H:%M:%S") ": Reboot & Start watchdog" >> /media/mmc/atomhack.log
     ip route | awk '/default/ { print $3 }' > /tmp/router_address
+    # logs on the SD card that survive an unexpected reboot (/media/mmc/sdlog)
+    /scripts/sdlog.sh start
   ;;
   stop)
 	;;

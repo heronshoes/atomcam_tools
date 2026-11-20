@@ -17,6 +17,9 @@ sync_time() {
   return 1
 }
 
+# the daemon runs /scripts/ntpd_event.sh at each clock adjustment (step, stratum, every 11 minutes),
+# which keeps them in /media/mmc/sdlog/ntpd.log
+
 # log_time <message>: append to atomhack.log in local time (TZ is set after this script at boot)
 log_time() {
   (
@@ -35,7 +38,7 @@ case "$1" in
     # (the first query right after the address is assigned can fail)
     if sync_time 30 ; then
       log_time "ntpd synced (uptime `cut -d' ' -f1 /proc/uptime`, try $tries)"
-      /usr/sbin/ntpd -p ntp.nict.jp
+      /usr/sbin/ntpd -p ntp.nict.jp -S /scripts/ntpd_event.sh
       [ $? == 0 ] && logger -s "OK" || logger -s "FAIL"
       exit 0
     fi
@@ -49,7 +52,7 @@ case "$1" in
       else
         log_time "ntpd sync failed (uptime `cut -d' ' -f1 /proc/uptime`, try $tries)"
       fi
-      /usr/sbin/ntpd -p ntp.nict.jp
+      /usr/sbin/ntpd -p ntp.nict.jp -S /scripts/ntpd_event.sh
       [ $? == 0 ] && logger -s "OK" || logger -s "FAIL"
       rm -f /tmp/ntpd_waiting
     ) < /dev/null > /dev/null 2>&1 &
@@ -63,7 +66,7 @@ case "$1" in
     [ -f /tmp/ntpd_waiting ] && exit 0
     pidof ntpd > /dev/null && exit 0
     echo `date +"%Y/%m/%d %H:%M:%S"` ": ntpd restart"
-    /usr/sbin/ntpd -p ntp.nict.jp
+    /usr/sbin/ntpd -p ntp.nict.jp -S /scripts/ntpd_event.sh
   ;;
   restart|reload)
     "$0" stop
