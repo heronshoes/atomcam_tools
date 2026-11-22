@@ -544,6 +544,7 @@ video drc 0 - 255
 video hilight 0 - 10
 video again 0 -
 video dgain 0 -
+video gain
 video expr manual|auto <time>
 video bitrate <ch> 10-3000(kbps)|auto
 video fps <ch> 1-30(fps)|auto
@@ -565,9 +566,38 @@ video sharpはシャープネス設定。
 
 video aecompは自動露出設定。
 
-video aeitmaxは自動露出関連、よくわからない。
+video aeitmaxは自動露出の露出時間の上限（ライン単位）。引数無しで現在値を表示し、引数で設定する（IMP_ISP_Tuning_GetAE_IT_MAX / SetAe_IT_MAX）。
+
+- 1ラインは約28us（video exprの5番目の値）。1683ラインで約47ms（20fpsの1フレーム）、3500ラインで約99ms（10fpsの1フレーム）。
+- `video expr auto <line> <min> <max>` の `<max>` と、`video expr` の4番目の値も同じ上限を指す。autoでは `<line>` は使われない。`video expr manual <time>` は上限を1683に戻す。
+- 起動時はset_icamera_config.shが/media/mmc/video_isp.confのaeitmaxを `video expr` で設定する。Web画面の映像設定（AE ITMax）もこの経路。
+- 暗いときは露出時間がこの上限に張り付き、それ以上の明るさはゲインで補われる（video gain参照）。夜の空は上限を上げるほどゲインとノイズが下がる。
+- 設定していないのに3537（約100ms、10fpsの1フレーム）になっていたことがある。iCamera_app側が設定し直すことがあるらしいが、条件は未確認。
 
 video dpc,drc,hilight,again, dgainこのあたりもよくわからない。
+
+video gainは現在のゲインと露出を表示する（読み出しのみ）。
+
+```
+# video gain
+75130 215 47 63356 35
+```
+
+左から次の値。
+
+- total : 総合ゲイン。256で1倍（例の75130は約293倍）。
+- again, dgain : アナログゲインとデジタルゲイン（IMP_ISP_Tuning_GetEVAttrの値）。
+- 露出時間 : us単位。
+- AE平均輝度 : 自動露出が見ている画面の平均輝度（IMP_ISP_Tuning_GetAeLuma）。
+
+夜の空を撮ったときの観察（2026/10/18〜19、ATOM Cam Swing）。
+
+- 夜は露出時間が上限（video exprで設定するtime_max）に張り付き、自動露出はゲインで明るさを合わせる。AE平均輝度は34前後に保たれる。
+- totalの上限は約107900（約421倍）。露出上限1683ライン（約47ms）ではゲインがこの上限に張り付き、AE平均輝度は22〜31まで下がった。3500ライン（約99ms）では約120〜400倍で、AE平均輝度は34前後に保たれた。
+- 1ラインは約28us（video exprの5番目の値）。1683ラインは20fpsの1フレーム、3500ラインは10fpsの1フレームに収まる。
+- 画面のノイズ（フレーム間の揺らぎ）はtotalの平方根にほぼ比例する。totalはノイズ量の目安になる。
+- video contを変えてもtotalとAE平均輝度は変わらない。コントラストは自動露出の後にかかる。
+- 雲が街明かりで照らされているときはtotalが下がる。このとき雲の間の暗い空は、平均輝度より暗く写る。
 
 video exprは露出設定のauto/manualの切り替えだけど、manualだと安定しない。
 
