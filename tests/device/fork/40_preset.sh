@@ -1,5 +1,5 @@
 # Presets: the last preset in atomhack.log is the one in effect now (preset.sh runs it from cron,
-# and the current one at boot), and none of its commands returned an error. Read only.
+# and at boot the presets since the last scheduled reboot, ending with the current one), and none of its commands returned an error. Read only.
 # プリセット: atomhack.log の最後のプリセットが今の時刻のものか、コマンドがエラーになっていないか（読み出しのみ）
 
 schedule=$(ini_get PRESET_SCHEDULE)
