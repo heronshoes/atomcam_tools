@@ -80,6 +80,16 @@ extern int IMP_ISP_Tuning_GetEVAttr(IMPISPEVAttr *attr);
 // Average luma of the AE statistics.
 extern int IMP_ISP_Tuning_GetAeLuma(int *luma);
 
+// AE statistics in 15 x 15 zones: the luma of each zone, and the weight (0-8) of each zone in
+// the AE luma. The SDK structs are unsigned int zone[15][15] / unsigned char weight[15][15];
+// the buffers are larger in case the SDK struct is larger.
+#define AE_ZONES 15
+extern int IMP_ISP_Tuning_GetAeZone(void *ae_zone);
+extern int IMP_ISP_Tuning_GetAeWeight(void *ae_weight);
+extern int IMP_ISP_Tuning_SetAeWeight(void *ae_weight);
+// freeze the AE (exposure and gain stay): 1 enable / 0 disable
+extern int IMP_ISP_Tuning_SetAeFreeze(int mode);
+
 // ISP image mirror(horizontal) effect function (enable/disable)
 extern int IMP_ISP_Tuning_SetISPHflip(int mode);
 extern int IMP_ISP_Tuning_GetISPHflip(int *pmode);
@@ -155,6 +165,9 @@ static char *HiLight(char *tokenPtr);
 static char *AGain(char *tokenPtr);
 static char *DGain(char *tokenPtr);
 static char *Gain(char *tokenPtr);
+static char *AEZone(char *tokenPtr);
+static char *AEWeight(char *tokenPtr);
+static char *AEFreeze(char *tokenPtr);
 static char *Expr(char *tokenPtr);
 static char *Bitrate(char *tokenPtr);
 static char *Framerate(char *tokenPtr);
@@ -181,6 +194,9 @@ static struct CommandTableSt VideoCommandTable[] = {
   { "again",     &AGain }, // again 0 -
   { "dgain",     &DGain }, // dgain 0 -
   { "gain",      &Gain }, // gain : total(x256) again dgain expr_us luma
+  { "aezone",    &AEZone }, // aezone [<row 0-14>] : luma of the 15x15 AE zones (no row: to /tmp/aezone)
+  { "aeweight",  &AEWeight }, // aeweight [<row>] | aeweight set <file>|all <0-8> : AE zone weights
+  { "aefreeze",  &AEFreeze }, // aefreeze on|off
   { "expr",      &Expr }, // expr manual|auto <time>
   { "bitrate",   &Bitrate }, // bitrate <ch> 10-3000(kbps)|auto
   { "fps",       &Framerate }, // fps <ch> 1-30(fps)|auto
@@ -544,6 +560,95 @@ static char *Gain(char *tokenPtr) {
   IMP_ISP_Tuning_GetAeLuma(&luma);
   sprintf(CommandResBuf, "%u %u %u %u %d\n", total, ev.again, ev.dgain, ev.expr_us, luma);
   return CommandResBuf;
+}
+
+// the response is limited to about 250 bytes: one row in the response, or all rows to a file
+// (in the chroot of iCamera_app: /tmp is /atom/tmp outside)
+static char *AEZone(char *tokenPtr) {
+
+  static unsigned int zone[1024];
+  memset(zone, 0, sizeof(zone));
+  if(IMP_ISP_Tuning_GetAeZone(zone)) return "error";
+  char *p = strtok_r(NULL, " \t\r\n", &tokenPtr);
+  if(p) {
+    int row = atoi(p);
+    if((row < 0) || (row >= AE_ZONES)) return "error";
+    char *q = (char *)CommandResBuf;
+    q[0] = 0;
+    for(int x = 0; x < AE_ZONES; x++) sprintf(q + strlen(q), "%s%u", x ? " " : "", zone[row * AE_ZONES + x]);
+    strcat(q, "\n");
+    return q;
+  }
+  FILE *fp = fopen("/tmp/aezone.tmp", "w");
+  if(!fp) return "error";
+  for(int y = 0; y < AE_ZONES; y++) {
+    for(int x = 0; x < AE_ZONES; x++) fprintf(fp, "%s%u", x ? " " : "", zone[y * AE_ZONES + x]);
+    fprintf(fp, "\n");
+  }
+  fclose(fp);
+  rename("/tmp/aezone.tmp", "/tmp/aezone");
+  return "ok";
+}
+
+static char *AEWeight(char *tokenPtr) {
+
+  static unsigned char weight[1024];
+  memset(weight, 0, sizeof(weight));
+  if(IMP_ISP_Tuning_GetAeWeight(weight)) return "error";
+  char *p = strtok_r(NULL, " \t\r\n", &tokenPtr);
+  if(!p) {
+    FILE *fp = fopen("/tmp/aeweight.tmp", "w");
+    if(!fp) return "error";
+    for(int y = 0; y < AE_ZONES; y++) {
+      for(int x = 0; x < AE_ZONES; x++) fprintf(fp, "%s%u", x ? " " : "", weight[y * AE_ZONES + x]);
+      fprintf(fp, "\n");
+    }
+    fclose(fp);
+    rename("/tmp/aeweight.tmp", "/tmp/aeweight");
+    return "ok";
+  }
+  if(!strcasecmp(p, "set")) {
+    p = strtok_r(NULL, " \t\r\n", &tokenPtr);
+    if(!p) return "error";
+    if(!strcasecmp(p, "all")) {
+      p = strtok_r(NULL, " \t\r\n", &tokenPtr);
+      if(!p) return "error";
+      int w = atoi(p);
+      if((w < 0) || (w > 8)) return "error";
+      memset(weight, w, AE_ZONES * AE_ZONES);
+    } else {
+      FILE *fp = fopen(p, "r");
+      if(!fp) return "error";
+      for(int i = 0; i < AE_ZONES * AE_ZONES; i++) {
+        int w;
+        if((fscanf(fp, "%d", &w) != 1) || (w < 0) || (w > 8)) {
+          fclose(fp);
+          return "error";
+        }
+        weight[i] = w;
+      }
+      fclose(fp);
+    }
+    return IMP_ISP_Tuning_SetAeWeight(weight) ? "error" : "ok";
+  }
+  int row = atoi(p);
+  if((row < 0) || (row >= AE_ZONES)) return "error";
+  char *q = (char *)CommandResBuf;
+  q[0] = 0;
+  for(int x = 0; x < AE_ZONES; x++) sprintf(q + strlen(q), "%s%u", x ? " " : "", weight[row * AE_ZONES + x]);
+  strcat(q, "\n");
+  return q;
+}
+
+static char *AEFreeze(char *tokenPtr) {
+
+  char *p = strtok_r(NULL, " \t\r\n", &tokenPtr);
+  if(!p) return "error";
+  int mode;
+  if(!strcasecmp(p, "on")) mode = 1;
+  else if(!strcasecmp(p, "off")) mode = 0;
+  else return "error";
+  return IMP_ISP_Tuning_SetAeFreeze(mode) ? "error" : "ok";
 }
 
 static char *Expr(char *tokenPtr) {

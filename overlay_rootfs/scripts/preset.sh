@@ -9,6 +9,7 @@
 #    move <pan> <tilt> [<speed>]  speed defaults to 5 (9 loses steps). The camera first returns to
 #                                 0/0 to resync the position after manual moves, then approaches
 #                                 the target from below so the backlash is always on the same side.
+#    skyae on|off          start / stop metering the AE on the clear night sky (/scripts/sky_ae.sh).
 #    night ... / property nightVision ...  waits 3 seconds after it. The day/night switch happens
 #                          about 1 second later and resets video aeitmax to the mode's default.
 #
@@ -25,7 +26,8 @@
 # reboot in the last 24 hours, all the presets run, oldest first. With no preset since that reboot
 # (the boot after the scheduled reboot itself), the preset in effect now runs.
 # From the earlier presets, move and meteor run only when no later preset has one (the last one
-# decides the state), and commands that act once (jpeg, aplay, relmove, contmove, contstop) do not run.
+# decides the state; skyae likewise), and commands that act once (jpeg, aplay, relmove, contmove,
+# contstop) do not run.
 #
 # usage: preset.sh run <n>          apply the n-th entry of PRESET_SCHEDULE (from 1)
 #        preset.sh current [-n]     at boot: run the presets again up to the one in effect now
@@ -104,7 +106,7 @@ replay_cmds() {
   { idx[NR] = $1; cmd[NR] = $2; }
   END {
     once["jpeg"] = once["aplay"] = once["relmove"] = once["contmove"] = once["contstop"] = 1;
-    last["move"] = last["meteor"] = 1;
+    last["move"] = last["meteor"] = last["skyae"] = 1;
     for(i = NR; i >= 1; i--) {
       split(cmd[i], w, " ");
       keep[i] = 1;
@@ -180,6 +182,15 @@ run_cmd() {
   fi
   if [ "$DRYRUN" ] ; then
     echo "$* : (not run)"
+    return
+  fi
+  if [ "$1" = "skyae" ] ; then
+    case "$2" in
+      on) /scripts/sky_ae.sh start ;;
+      off) /scripts/sky_ae.sh stop ;;
+      *) echo "$* : error" ; return ;;
+    esac
+    echo "$* : ok"
     return
   fi
   if [ "$1" = "meteor" -a "$2" = "start" ] ; then

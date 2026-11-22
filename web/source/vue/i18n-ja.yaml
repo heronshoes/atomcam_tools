@@ -524,7 +524,7 @@ scheduleSettings:
   presetNote:
     comment: |
       コマンドは | で区切って並べます（move, night, video, property, jpeg, meteor など /scripts/cmd のコマンド）。
-      meteor start は起動から3分たつまで待ってから始まります。
+      meteor start は起動から3分たつまで待ってから始まります。skyae on|off で、AE の測光を晴れた夜空の部分だけにする処理を開始／停止します。
       カメラが起動したときは、直前の定期再起動より後のプリセットを時刻順にもう一度実行します（24時間以内に定期再起動が無いときはすべて、再起動の後にプリセットが無いときはその時刻に有効なもの）。前のプリセットの move と meteor は、後のプリセットに無いときだけ実行します。
   alias:
     title: コマンドの別名
